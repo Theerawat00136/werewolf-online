@@ -3,4 +3,4 @@ Flask-SocketIO
 Flask-SQLALCHEMY
 psycopg2-binary==2.9.9
 gunicorn
-eventlet
+uvicorn
