@@ -4,3 +4,4 @@ Flask-SQLAlchemy
 psycopg[binary]
 gunicorn
 eventlet
+psycopg2-binary==2.9.9
