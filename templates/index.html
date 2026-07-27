@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Werewolf Ultimate - Definitive Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 650px; margin: auto; transition: 1s ease; }
+        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input[type="text"], button, select { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; font-size: 1em; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        
+        .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .role-selector { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.03); padding: 5px 10px; border-radius: 5px; font-size: 0.9em; }
+        .role-selector button { width: 30px; padding: 5px; margin: 0 2px; border-radius: 3px; }
+        
+        body.night-mode { background-color: #1a1a2e; color: #e0e0e0; }
+        body.night-mode .box { border-color: #333; background-color: #16213e; }
+        body.night-mode .role-selector { background: rgba(255,255,255,0.05); }
+        
+        #chat_section { border: 1px solid #ccc; border-radius: 8px; display: none; background: #fff; color: #000; }
+        #chat_box { height: 200px; overflow-y: auto; padding: 10px; border-bottom: 1px solid #ccc; font-size: 0.9em; text-align: left; background: #fdfdfd; }
+        .chat-msg { margin-bottom: 6px; }
+        .wolf-msg { color: #dc3545; font-weight: bold; background: #ffebeb; padding: 2px 5px; border-radius: 4px; }
+        .sys-msg { color: #8e44ad; font-style: italic; font-weight: bold; text-align: center; margin: 10px 0; border-top: 1px dashed #ccc; padding-top: 5px;}
+        #timer_display { font-size: 2.5em; font-weight: bold; color: #e74c3c; margin: 15px 0; display: none; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
+        
+        /* Modal คู่มือ */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 8px; color: #333; text-align: left;}
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover { color: black; }
+        .role-desc { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+        .role-desc h4 { margin: 0 0 5px 0; }
+        
+        .fade-in { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 id="main_title" style="margin: 0;">หมู่บ้าน Werewolf 🐺</h2>
+        <button onclick="document.getElementById('manual_modal').style.display='block'" style="background-color: #17a2b8; width: auto; padding: 8px 15px;">📖 คู่มือตัวละคร</button>
+    </div>
+    <hr>
+    
+    <!-- Modal คู่มือการเล่น -->
+    <div id="manual_modal" class="modal">
+        <div class="modal-content fade-in">
+            <span class="close-btn" onclick="document.getElementById('manual_modal').style.display='none'">&times;</span>
+            <h2 style="margin-top: 0;">📖 คู่มือบทบาททั้ง 15 ตัว</h2>
+            <div style="max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+                <div class="role-desc"><h4 style="color:#000;">🧑‍🌾 ชาวบ้าน (Villager)</h4><p style="margin:0; font-size:0.9em;">ไม่มีพลังพิเศษตอนกลางคืน ต้องใช้การพูดคุยจับโกหกและโหวตแขวนคอหมาป่าในตอนเช้า</p></div>
+                <div class="role-desc"><h4 style="color:#c0392b;">🐺 หมาป่า (Werewolf)</h4><p style="margin:0; font-size:0.9em;">ตื่นตอนกลางคืนเพื่อเลือกฆ่าคน 1 คน สามารถคุยแชทลับกับเพื่อนหมาป่าได้</p></div>
+                <div class="role-desc"><h4 style="color:#c0392b;">🐺 จ่าฝูงหมาป่า (Alpha Wolf)</h4><p style="margin:0; font-size:0.9em;">ฝั่งหมาป่าที่มีสกิลซ่อนตัว หากผู้หยั่งรู้มาส่อง จะเห็นว่าเขาเป็น "ชาวบ้าน"</p></div>
+                <div class="role-desc"><h4 style="color:#3498db;">👁️ ผู้หยั่งรู้ (Seer)</h4><p style="margin:0; font-size:0.9em;">ตื่นตอนกลางคืนเพื่อเลือกส่องดูบทบาทของผู้เล่นอื่นได้ 1 คน</p></div>
+                <div class="role-desc"><h4 style="color:#2ecc71;">🛡️ ผู้คุ้มกัน (Bodyguard)</h4><p style="margin:0; font-size:0.9em;">ตื่นตอนกลางคืนเพื่อเลือกปกป้องใครก็ได้ 1 คน (เลือกตัวเองได้) หากคนนั้นถูกหมาป่ากัดจะไม่ตาย</p></div>
+                <div class="role-desc"><h4 style="color:#8e44ad;">🧙‍♀️ แม่มด (Witch)</h4><p style="margin:0; font-size:0.9em;">มียา 2 ขวด ใช้ได้ขวดละ 1 ครั้งต่อเกม: <b>ยาชุบชีวิต</b> (ช่วยคนที่โดนกัดคืนนั้น) และ <b>ยาพิษ</b> (สั่งฆ่าใครก็ได้ 1 คน)</p></div>
+                <div class="role-desc"><h4 style="color:#8e44ad;">🏹 นายพราน (Hunter)</h4><p style="margin:0; font-size:0.9em;">หากถูกฆ่าตาย (ไม่ว่าจะโดนกัดหรือโดนแขวนคอ) จะสามารถลั่นไกปืนลากใครก็ได้ตายตามไป 1 คนทันที</p></div>
+                <div class="role-desc"><h4 style="color:#e84393;">💘 กามเทพ (Cupid)</h4><p style="margin:0; font-size:0.9em;">ตื่นเฉพาะคืนแรก เพื่อจับคู่ผู้เล่น 2 คนเป็นคู่รัก หากคนใดคนหนึ่งตาย อีกคนจะตรอมใจตายตามทันที</p></div>
+                <div class="role-desc"><h4 style="color:#e67e22;">💃 หญิงบริการ (Harlot)</h4><p style="margin:0; font-size:0.9em;">ทุกคืนต้องไปนอนบ้านคนอื่น 1 คน ถ้ารอดคือรอด แต่ถ้าไปบ้านหมาป่า/บ้านฆาตกร หรือไปบ้านเป้าหมายที่ถูกฆ่า เธอจะตายแทน!</p></div>
+                <div class="role-desc"><h4 style="color:#f39c12;">🎖️ ผู้ใหญ่บ้าน (Mayor)</h4><p style="margin:0; font-size:0.9em;">ฝั่งชาวบ้าน แต่เสียงโหวตประหารในตอนเช้าของเขาจะนับเป็น 2 คะแนน!</p></div>
+                <div class="role-desc"><h4 style="color:#16a085;">🧟‍♂️ คนต้องสาป (Cursed)</h4><p style="margin:0; font-size:0.9em;">ฝั่งชาวบ้าน (และไม่รู้ตัว) แต่ถ้าถูกหมาป่ากัด เขาจะไม่ตาย แต่จะกลายเป็นหมาป่าในคืนถัดไป</p></div>
+                <div class="role-desc"><h4 style="color:#34495e;">🌕 ครึ่งหมาป่า (Lycan)</h4><p style="margin:0; font-size:0.9em;">ฝั่งชาวบ้านแท้ๆ แต่ถ้าผู้หยั่งรู้มาส่อง จะเห็นว่าเขาเป็น "หมาป่า"</p></div>
+                <div class="role-desc"><h4 style="color:#7f8c8d;">🦹‍♂️ คนทรยศ (Traitor)</h4><p style="margin:0; font-size:0.9em;">เนียนเป็นชาวบ้าน แต่จะชนะพร้อมกับหมาป่า (ต้องพยายามปั่นให้หมาป่าชนะ โดยที่หมาป่าก็ไม่รู้ว่าคนนี้เป็นพวก)</p></div>
+                <div class="role-desc"><h4 style="color:#000;">🔪 ฆาตกรต่อเนื่อง (Serial Killer)</h4><p style="margin:0; font-size:0.9em;">มือที่สาม ตื่นทุกคืนเพื่อฆ่าคน 1 คน จะชนะก็ต่อเมื่อเหลือรอดเป็นคนสุดท้ายหรือสองคนสุดท้ายของหมู่บ้าน</p></div>
+                <div class="role-desc"><h4 style="color:#d35400;">🤡 คนบ้า (Fool)</h4><p style="margin:0; font-size:0.9em;">เป้าหมายเดียวคือต้องปั่นป่วนให้ตัวเอง "ถูกโหวตแขวนคอ" ตอนกลางวันให้ได้ หากทำสำเร็จจะชนะเกมทันที</p></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="lobby_area" class="fade-in">
+        <div class="box"><input type="text" id="username" placeholder="ตั้งชื่อของคุณ..."></div>
+        <div class="box" id="host_section">
+            <h3>สร้างห้องใหม่</h3><button onclick="createRoom()">สร้างห้อง</button>
+        </div>
+        <div class="box" id="join_section">
+            <h3>เข้าร่วมห้อง</h3><input type="text" id="room_code_input" placeholder="รหัสห้อง 5 หลัก">
+            <button onclick="joinRoom()" style="background-color: #007bff;">เข้าร่วม</button>
+        </div>
+    </div>
+    
+    <div id="room_details" class="box fade-in" style="display: none;">
+        <h3>รหัสห้อง: <span id="display_room_code" style="color: red;">-</span></h3>
+        <div style="display: flex; justify-content: space-between;">
+            <div style="width: 35%;">
+                <h4>ผู้เล่น (<span id="player_count">0</span>):</h4>
+                <ul id="player_list" style="padding-left: 20px;"></ul>
+            </div>
+            <div style="width: 60%;">
+                <div id="host_controls" style="display: none;">
+                    <h4>จัดเด็คไพ่ (<span id="deck_count">0</span>)</h4>
+                    <div class="role-grid">
+                        <div class="role-selector"><label>🐺 หมาป่า: <span id="count_Werewolf">0</span></label><div><button onclick="updateRole('Werewolf', 1)">+</button><button onclick="updateRole('Werewolf', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#c0392b;">🐺 จ่าฝูงหมาป่า: <span id="count_Alpha_Wolf">0</span></label><div><button onclick="updateRole('Alpha Wolf', 1)">+</button><button onclick="updateRole('Alpha Wolf', -1)">-</button></div></div>
+                        <div class="role-selector"><label>👁️ หยั่งรู้: <span id="count_Seer">0</span></label><div><button onclick="updateRole('Seer', 1)">+</button><button onclick="updateRole('Seer', -1)">-</button></div></div>
+                        <div class="role-selector"><label>🛡️ คุ้มกัน: <span id="count_Bodyguard">0</span></label><div><button onclick="updateRole('Bodyguard', 1)">+</button><button onclick="updateRole('Bodyguard', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#8e44ad;">🧙‍♀️ แม่มด: <span id="count_Witch">0</span></label><div><button onclick="updateRole('Witch', 1)">+</button><button onclick="updateRole('Witch', -1)">-</button></div></div>
+                        <div class="role-selector"><label>🏹 พราน: <span id="count_Hunter">0</span></label><div><button onclick="updateRole('Hunter', 1)">+</button><button onclick="updateRole('Hunter', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#e84393;">💘 กามเทพ: <span id="count_Cupid">0</span></label><div><button onclick="updateRole('Cupid', 1)">+</button><button onclick="updateRole('Cupid', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#e67e22;">💃 หญิงบริการ: <span id="count_Harlot">0</span></label><div><button onclick="updateRole('Harlot', 1)">+</button><button onclick="updateRole('Harlot', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#f39c12;">🎖️ ผู้ใหญ่บ้าน: <span id="count_Mayor">0</span></label><div><button onclick="updateRole('Mayor', 1)">+</button><button onclick="updateRole('Mayor', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#16a085;">🧟‍♂️ คนต้องสาป: <span id="count_Cursed">0</span></label><div><button onclick="updateRole('Cursed', 1)">+</button><button onclick="updateRole('Cursed', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#34495e;">🌕 ครึ่งหมาป่า: <span id="count_Lycan">0</span></label><div><button onclick="updateRole('Lycan', 1)">+</button><button onclick="updateRole('Lycan', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#7f8c8d;">🦹‍♂️ คนทรยศ: <span id="count_Traitor">0</span></label><div><button onclick="updateRole('Traitor', 1)">+</button><button onclick="updateRole('Traitor', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#000; font-weight:bold;">🔪 ฆาตกร: <span id="count_Serial_Killer">0</span></label><div><button onclick="updateRole('Serial Killer', 1)">+</button><button onclick="updateRole('Serial Killer', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#d35400;">🤡 คนบ้า: <span id="count_Fool">0</span></label><div><button onclick="updateRole('Fool', 1)">+</button><button onclick="updateRole('Fool', -1)">-</button></div></div>
+                        <div class="role-selector"><label>🧑‍🌾 ชาวบ้าน: <span id="count_Villager">0</span></label><div><button onclick="updateRole('Villager', 1)">+</button><button onclick="updateRole('Villager', -1)">-</button></div></div>
+                    </div>
+                    <button onclick="startGame()" style="background-color: #dc3545; padding: 12px; font-size: 1.1em;" id="start_btn" disabled>เริ่มเกม</button>
+                </div>
+                <div id="player_waiting" style="display: none;"><h4 style="color: #6c757d; margin-top: 50px;">⏳ รอโฮสต์เริ่มเกม...</h4></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- โซนเกมเพลย์ -->
+    <div id="game_screen" style="display: none; text-align: center;" class="fade-in">
+        <div id="timer_display">⏳ <span id="time_left">0</span></div>
+        <h2 id="phase_title">-</h2>
+        <h3 style="color: #888; margin-bottom: 0;">บทบาทของคุณ</h3>
+        <h1 id="my_role" style="color: #007bff; margin-top: 5px; font-size: 2.5em;">-</h1>
+        
+        <div id="action_section" class="box fade-in" style="display: none; background-color: #2c3e50; border:none;">
+            <h4 id="action_title" style="color: white;">-</h4>
+            <div id="action_dynamic_content"></div>
+            <button id="confirm_action_btn" onclick="submitAction()" style="background-color: #e74c3c; margin-top: 15px;">ยืนยันคำสั่ง</button>
+            <p id="action_status" style="color: #2ecc71; display: none; margin-top: 10px; font-weight: bold;"></p>
+        </div>
+
+        <div id="seer_result_box" class="box fade-in" style="display: none; background-color: #34495e; color: #3498db; border:none;">
+            <h4>👁️ ผลการส่อง:</h4><h2 id="seer_text" style="margin: 5px 0;"></h2>
+        </div>
+
+        <div id="hunter_section" class="box fade-in" style="display: none; background-color: #8e44ad; border:none;">
+            <h3 style="color: white;">🏹 คุณถูกฆ่า! รีบยิงปืนก่อนหมดลมหายใจ:</h3>
+            <select id="hunter_target_select"></select>
+            <button id="hunter_shoot_btn" onclick="submitHunterAction()" style="background-color: #e74c3c; margin-top: 10px;">ลั่นไกปืน!</button>
+        </div>
+
+        <div id="day_section" class="box fade-in" style="display: none; background-color: #f1c40f; color: #333; border:none;">
+            <h4 id="morning_announcement" style="margin-top: 5px;">-</h4>
+            <h4 id="vote_announcement" style="color: #c0392b; margin-bottom: 0;"></h4>
+            
+            <div id="voting_section" style="margin-top: 15px; border-top: 1px solid #d4ac0d; padding-top: 15px;">
+                <h4>เวลาโหวตแขวนคอ ⚖️</h4>
+                <select id="vote_select"></select>
+                <button id="vote_btn" onclick="submitVote()" style="background-color: #e74c3c;">โหวตประหาร</button>
+                <p id="vote_status" style="color: #27ae60; display: none; margin-top: 10px; font-weight: bold;"></p>
+            </div>
+        </div>
+
+        <div id="game_over_screen" class="box fade-in" style="display: none; background-color: #222; color: white;">
+            <h1 style="color: #f1c40f; font-size: 3em;">จบเกม! 🏆</h1>
+            <h2 id="winner_text">-</h2>
+            <button onclick="location.reload()" style="background-color: #007bff; margin-top: 20px;">กลับสู่ล็อบบี้</button>
+        </div>
+        
+        <div id="chat_section">
+            <div id="chat_box"></div>
+            <div style="padding: 10px; display: flex; gap: 5px; border-top: 1px solid #eee;">
+                <input type="text" id="chat_input" placeholder="พิมพ์พูดคุย..." onkeypress="if(event.key === 'Enter') sendChat()">
+                <button onclick="sendChat()" style="width: 70px;">ส่ง</button>
+            </div>
+            <div id="wolf_chat_controls" style="display: none; padding: 0 10px 10px 10px; text-align: left;">
+                <label style="color: #dc3545; font-size: 0.9em; font-weight: bold; cursor: pointer;">
+                    <input type="checkbox" id="wolf_chat_toggle"> ส่งข้อความลับหมาป่า 🐺
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🟢 ระบบดึงชื่อเดิมที่เคยพิมพ์ไว้ (localStorage) มาใส่ให้อัตโนมัติ
+        window.onload = function() {
+            const savedUsername = localStorage.getItem('werewolf_username');
+            if (savedUsername) {
+                document.getElementById('username').value = savedUsername;
+            }
+        };
+
+        const socket = io();
+        let isHost = false;
+        let selectedRoles = { 'Werewolf':0, 'Alpha Wolf':0, 'Seer':0, 'Bodyguard':0, 'Hunter':0, 'Witch':0, 'Cupid':0, 'Harlot':0, 'Mayor':0, 'Cursed':0, 'Lycan':0, 'Traitor':0, 'Serial Killer':0, 'Villager':0, 'Fool':0 };
+        let currentRoomCode = '';
+        let totalPlayers = 0;
+        let isPlayerDead = false;
+        let timerInterval = null;
+        let pendingPhaseAfterHunter = '';
+
+        // ----------------- ระบบเสียง (Audio) -----------------
+        const sfx = {
+            start: new Audio('/static/start.mp3'),
+            night: new Audio('/static/night.mp3'),
+            morning: new Audio('/static/morning.mp3'),
+            gun: new Audio('/static/gun.mp3'),
+            vote: new Audio('/static/vote.mp3'),
+            win: new Audio('/static/win.mp3')
+        };
+        
+        function playSfx(name) {
+            try {
+                if(sfx[name]) {
+                    sfx[name].currentTime = 0;
+                    sfx[name].play().catch(e => console.log("รอไฟล์เสียง: กรุณาใส่ไฟล์ในโฟลเดอร์ static"));
+                }
+            } catch(e) {}
+        }
+        // ---------------------------------------------------
+
+        function startTimer(seconds, timeoutCallback) {
+            clearInterval(timerInterval);
+            let timeLeft = seconds;
+            document.getElementById('timer_display').style.display = 'block';
+            document.getElementById('time_left').innerText = timeLeft;
+            timerInterval = setInterval(() => {
+                timeLeft--; document.getElementById('time_left').innerText = timeLeft;
+                if (timeLeft <= 0) { clearInterval(timerInterval); timeoutCallback(); }
+            }, 1000);
+        }
+        function stopTimer() { clearInterval(timerInterval); document.getElementById('timer_display').style.display = 'none'; }
+
+        function createRoom() {
+            const username = document.getElementById('username').value.trim();
+            if (!username) return alert("กรุณาใส่ชื่อ");
+            
+            // 🟢 บันทึกชื่อลงความจำเบราว์เซอร์
+            localStorage.setItem('werewolf_username', username);
+            
+            socket.emit('create_room', { username: username });
+        }
+        function joinRoom() {
+            const username = document.getElementById('username').value.trim();
+            const roomCode = document.getElementById('room_code_input').value.trim().toUpperCase();
+            if (!username || !roomCode) return alert("ใส่ข้อมูลให้ครบ");
+            
+            // 🟢 บันทึกชื่อลงความจำเบราว์เซอร์
+            localStorage.setItem('werewolf_username', username);
+            
+            socket.emit('join_room', { username: username, room_code: roomCode });
+        }
+
+        socket.on('room_created', function(data) {
+            isHost = true; currentRoomCode = data.room_code;
+            document.getElementById('lobby_area').style.display = 'none';
+            document.getElementById('room_details').style.display = 'block';
+            document.getElementById('host_controls').style.display = 'block';
+            document.getElementById('display_room_code').innerText = data.room_code;
+        });
+
+        socket.on('join_success', function(data) {
+            isHost = false; currentRoomCode = data.room_code;
+            document.getElementById('lobby_area').style.display = 'none';
+            document.getElementById('room_details').style.display = 'block';
+            document.getElementById('player_waiting').style.display = 'block';
+            document.getElementById('display_room_code').innerText = data.room_code;
+        });
+
+        socket.on('player_joined', function(data) {
+            const list = document.getElementById('player_list');
+            list.innerHTML = ""; totalPlayers = data.players.length;
+            document.getElementById('player_count').innerText = totalPlayers;
+            data.players.forEach(p => { const li = document.createElement('li'); li.innerText = p; list.appendChild(li); });
+            if (isHost) {
+                let totalCards = Object.keys(selectedRoles).reduce((sum, key) => sum + selectedRoles[key], 0);
+                document.getElementById('start_btn').disabled = !(totalCards === totalPlayers && totalPlayers > 0);
+            }
+        });
+
+        socket.on('error', function(data) { alert(data.message); });
+
+        function updateRole(roleName, change) {
+            let idName = roleName.replace(' ', '_');
+            if (selectedRoles[roleName] + change >= 0) {
+                selectedRoles[roleName] += change;
+                document.getElementById('count_' + idName).innerText = selectedRoles[roleName];
+                let totalCards = Object.keys(selectedRoles).reduce((sum, key) => sum + selectedRoles[key], 0);
+                document.getElementById('deck_count').innerText = totalCards;
+                document.getElementById('start_btn').disabled = !(totalCards === totalPlayers && totalPlayers > 0);
+            }
+        }
+
+        function startGame() { socket.emit('start_game', { room_code: currentRoomCode, roles: selectedRoles }); }
+
+        socket.on('game_started', function(data) {
+            document.getElementById('room_details').style.display = 'none';
+            document.getElementById('game_screen').style.display = 'block';
+            document.getElementById('chat_section').style.display = 'block';
+            addSystemMessage("--- 🌕 เริ่มเกมแล้ว! ---");
+            playSfx('start'); 
+        });
+
+        socket.on('receive_role', function(data) {
+            document.getElementById('my_role').innerText = data.role;
+            if (['Werewolf', 'Alpha Wolf'].includes(data.role)) {
+                document.getElementById('wolf_chat_controls').style.display = 'block';
+            }
+            setupNightPhase(data.role, data.targets, data.extra_data);
+        });
+
+        socket.on('update_role_ui', function(data) {
+            document.getElementById('my_role').innerText = data.new_role;
+            if (data.new_role === 'Werewolf') {
+                document.getElementById('wolf_chat_controls').style.display = 'block';
+                addSystemMessage("🩸 คำสาปทำงาน! คุณกลายเป็นหมาป่าแล้ว!");
+            }
+        });
+
+        function populateSelect(id, targets) {
+            const sel = document.getElementById(id);
+            if(!sel) return;
+            targets.forEach(t => {
+                const opt = document.createElement('option'); opt.value = t; opt.innerText = t; sel.appendChild(opt);
+            });
+        }
+
+        function setupNightPhase(role, targets, extraData = {}) {
+            if (isPlayerDead) return;
+            playSfx('night'); 
+
+            document.body.classList.add('night-mode');
+            document.getElementById('day_section').style.display = 'none';
+            document.getElementById('seer_result_box').style.display = 'none';
+            document.getElementById('hunter_section').style.display = 'none';
+            document.getElementById('phase_title').innerText = "🌙 คืนเดือนมืด";
+            
+            const actionSection = document.getElementById('action_section');
+            const contentDiv = document.getElementById('action_dynamic_content');
+            contentDiv.innerHTML = "";
+            document.getElementById('action_status').style.display = 'none';
+
+            if (['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Cupid', 'Harlot', 'Serial Killer'].includes(role)) {
+                if (role === 'Cupid' && extraData.night_count !== 1) { actionSection.style.display = 'none'; return; }
+                
+                actionSection.style.display = 'block';
+                document.getElementById('confirm_action_btn').disabled = false;
+                
+                if (role === 'Cupid') {
+                    document.getElementById('action_title').innerText = "💘 เลือกคู่รัก 2 คน:";
+                    contentDiv.innerHTML = `<select id="target1" style="margin-bottom:5px;"></select><select id="target2"></select>`;
+                    populateSelect('target1', targets); populateSelect('target2', targets);
+                } 
+                else if (role === 'Witch') {
+                    document.getElementById('action_title').innerText = "🧙‍♀️ ปรุงยาแม่มด:";
+                    let html = "";
+                    if (extraData.witch_heal) html += `<label style="color:white; display:block; margin-bottom:10px;"><input type="checkbox" id="witch_heal_chk"> 🧪 ชุบชีวิตคนที่โดนกัดคืนนี้</label>`;
+                    else html += `<p style="color:#aaa;">❌ ยาชุบชีวิตหมดแล้ว</p>`;
+                    if (extraData.witch_poison) html += `<label style="color:white;">☠️ ใช้ยาพิษสาดใส่:</label> <select id="target1"><option value="SKIP">เก็บยาพิษไว้ก่อน</option></select>`;
+                    else html += `<p style="color:#aaa;">❌ ยาพิษหมดแล้ว</p>`;
+                    contentDiv.innerHTML = html;
+                    if (extraData.witch_poison) populateSelect('target1', targets);
+                }
+                else {
+                    if(['Werewolf', 'Alpha Wolf'].includes(role)) document.getElementById('action_title').innerText = "🐺 เลือกเหยื่อที่จะขย้ำ:";
+                    if(role === 'Seer') document.getElementById('action_title').innerText = "👁️ เลือกส่องบทบาท:";
+                    if(role === 'Bodyguard') document.getElementById('action_title').innerText = "🛡️ เลือกคุ้มกัน (เลือกตัวเองได้):";
+                    if(role === 'Harlot') document.getElementById('action_title').innerText = "💃 เลือกบ้านที่จะไปหนีหมาป่าคืนนี้:";
+                    if(role === 'Serial Killer') document.getElementById('action_title').innerText = "🔪 เลือกเหยื่อที่คุณต้องการสังหาร:";
+                    
+                    contentDiv.innerHTML = `<select id="target1"><option value="SKIP">พักมือหนึ่งคืน (Skip)</option></select>`;
+                    populateSelect('target1', targets);
+                }
+                
+                startTimer(30, () => {
+                    if(!document.getElementById('confirm_action_btn').disabled) submitAction(true);
+                });
+            } else {
+                actionSection.style.display = 'none';
+            }
+        }
+
+        function submitAction(isAuto = false) {
+            stopTimer();
+            const username = document.getElementById('username').value.trim();
+            const myRole = document.getElementById('my_role').innerText.replace(" (วิญญาณ 👻)", "");
+            let actionData = { target: "SKIP" };
+            
+            if (!isAuto) {
+                if (myRole === 'Cupid') {
+                    actionData = { target1: document.getElementById('target1') ? document.getElementById('target1').value : "SKIP", target2: document.getElementById('target2') ? document.getElementById('target2').value : "SKIP" };
+                } else if (myRole === 'Witch') {
+                    actionData = { heal: document.getElementById('witch_heal_chk') ? document.getElementById('witch_heal_chk').checked : false, poison: document.getElementById('target1') ? document.getElementById('target1').value : "SKIP" };
+                } else {
+                    actionData = { target: document.getElementById('target1') ? document.getElementById('target1').value : "SKIP" };
+                }
+            }
+            
+            socket.emit('submit_night_action', { username: username, room_code: currentRoomCode, action_data: actionData });
+            document.getElementById('confirm_action_btn').disabled = true;
+            document.getElementById('action_status').style.display = 'block';
+            if (isAuto) document.getElementById('action_status').innerText = "⏳ หมดเวลา! ระบบทำการข้ามตาของคุณ";
+            else document.getElementById('action_status').innerText = "✅ บันทึกแล้ว รอผู้เล่นอื่น...";
+        }
+
+        socket.on('seer_result', function(data) {
+            document.getElementById('seer_result_box').style.display = 'block';
+            document.getElementById('seer_text').innerText = data.target + " คือ " + data.role;
+        });
+
+        socket.on('morning_comes', function(data) {
+            document.body.classList.remove('night-mode');
+            playSfx('morning'); 
+
+            document.getElementById('phase_title').innerText = "☀️ รุ่งสาง";
+            document.getElementById('action_section').style.display = 'none';
+            document.getElementById('seer_result_box').style.display = 'none';
+            document.getElementById('day_section').style.display = 'block';
+            document.getElementById('voting_section').style.display = 'none';
+            document.getElementById('vote_announcement').innerText = "";
+            
+            const ann = document.getElementById('morning_announcement');
+            const myUname = document.getElementById('username').value.trim();
+            
+            if (data.dead_player && data.dead_player.length > 0) {
+                ann.innerHTML = "ผู้เสียชีวิตเมื่อคืน: <b style='color:red;'>" + data.dead_player + "</b> 💀";
+                addSystemMessage("💀 " + data.dead_player + " เสียชีวิตแล้ว");
+                if (data.dead_player.includes(myUname) && !isPlayerDead) { 
+                    isPlayerDead = true; document.getElementById('my_role').innerText += " (วิญญาณ 👻)"; 
+                }
+            } else {
+                ann.innerHTML = "<span style='color:green;'>เมื่อคืนไม่มีใครตาย 🕊️</span>";
+                addSystemMessage("เช้านี้หมู่บ้านสงบสุข");
+            }
+
+            if (data.dead_is_hunter) {
+                document.getElementById('vote_announcement').innerHTML = "<span style='color:#8e44ad;'>🏹 นายพรานกำลังใช้แรงเฮือกสุดท้าย เลือกเป้าหมายยิง...</span>";
+                if (data.hunter_name === myUname) showHunterAction(data.alive_players, 'DAY');
+            } else {
+                prepareVoting(data.alive_players);
+            }
+        });
+
+        function showHunterAction(alivePlayers, nextPhase) {
+            pendingPhaseAfterHunter = nextPhase;
+            document.getElementById('hunter_section').style.display = 'block';
+            document.getElementById('hunter_shoot_btn').disabled = false;
+            const select = document.getElementById('hunter_target_select');
+            select.innerHTML = "";
+            alivePlayers.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; select.appendChild(opt); });
+            startTimer(20, () => { if(!document.getElementById('hunter_shoot_btn').disabled) submitHunterAction(true); });
+        }
+
+        function submitHunterAction(isAuto = false) {
+            stopTimer();
+            let target = document.getElementById('hunter_target_select').value;
+            if (isAuto) target = "SKIP";
+            socket.emit('submit_hunter_shoot', { room_code: currentRoomCode, target: target, next_phase: pendingPhaseAfterHunter });
+            document.getElementById('hunter_shoot_btn').disabled = true;
+            document.getElementById('hunter_shoot_btn').innerText = "ยิงไปแล้ว!";
+        }
+
+        socket.on('hunter_result', function(data) {
+            document.getElementById('hunter_section').style.display = 'none';
+            if (data.target && data.target !== "SKIP") {
+                playSfx('gun'); 
+                addSystemMessage("💥 ปัง! การยิงของนายพรานทำให้ " + data.final_dead_names + " ตาย!");
+                const myUname = document.getElementById('username').value.trim();
+                if (data.final_dead_names.includes(myUname) && !isPlayerDead) {
+                    isPlayerDead = true; document.getElementById('my_role').innerText += " (วิญญาณ 👻)"; 
+                }
+                document.getElementById('vote_announcement').innerHTML = "<span style='color:red;'>💥 ปัง! นายพรานยิง " + data.final_dead_names + " ตาย!</span>";
+            } else {
+                document.getElementById('vote_announcement').innerText = "นายพรานสิ้นลมไปโดยไม่ได้ยิงใคร...";
+            }
+
+            if (data.dead_is_hunter) {
+                if (data.hunter_name === document.getElementById('username').value.trim()) showHunterAction(data.alive_players, data.next_phase);
+            } else {
+                setTimeout(() => {
+                    if(data.next_phase === 'DAY') prepareVoting(data.alive_players);
+                    else if (data.next_phase === 'NIGHT') {
+                        const myRole = document.getElementById('my_role').innerText.replace(" (วิญญาณ 👻)", "");
+                        setupNightPhase(myRole, data.alive_players.filter(p => p !== document.getElementById('username').value.trim()), data.extra_data);
+                    }
+                }, 4000);
+            }
+        });
+
+        function prepareVoting(alivePlayers) {
+            if (!isPlayerDead) {
+                document.getElementById('voting_section').style.display = 'block';
+                document.getElementById('vote_btn').disabled = false;
+                document.getElementById('vote_select').disabled = false;
+                document.getElementById('vote_status').style.display = 'none';
+                const select = document.getElementById('vote_select');
+                select.innerHTML = "";
+                alivePlayers.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; select.appendChild(opt); });
+                const skipOpt = document.createElement('option'); skipOpt.value = "SKIP"; skipOpt.innerText = "🙅‍♂️ งดโหวต (Skip)"; select.appendChild(skipOpt);
+                
+                startTimer(45, () => {
+                    if(!document.getElementById('vote_btn').disabled) { document.getElementById('vote_select').value = "SKIP"; submitVote(true); }
+                });
+            } else { document.getElementById('voting_section').style.display = 'none'; }
+        }
+
+        function submitVote(isAuto = false) {
+            stopTimer();
+            const target = document.getElementById('vote_select').value;
+            const username = document.getElementById('username').value.trim();
+            socket.emit('submit_vote', { username: username, room_code: currentRoomCode, target: target });
+            document.getElementById('vote_btn').disabled = true;
+            document.getElementById('vote_select').disabled = true;
+            document.getElementById('vote_status').style.display = 'block';
+            if (isAuto) document.getElementById('vote_status').innerText = "⏳ หมดเวลา! ระบบบังคับงดโหวต";
+            else document.getElementById('vote_status').innerText = "✅ บันทึกโหวตแล้ว...";
+        }
+
+        socket.on('start_new_night', function(data) {
+            stopTimer();
+            document.getElementById('day_section').style.display = 'block';
+            document.getElementById('voting_section').style.display = 'none';
+            const vText = document.getElementById('vote_announcement');
+            const myUname = document.getElementById('username').value.trim();
+            
+            if (data.executed_player && data.executed_player.length > 0) {
+                playSfx('vote'); 
+                vText.innerHTML = "มติเอกฉันท์! การแขวนคอทำให้ <b style='color:red;'>" + data.executed_player + "</b> เสียชีวิต ⚖️";
+                addSystemMessage("⚖️ " + data.executed_player + " เสียชีวิตจากการโหวต");
+                if (data.executed_player.includes(myUname) && !isPlayerDead) { 
+                    isPlayerDead = true; document.getElementById('my_role').innerText += " (วิญญาณ 👻)"; 
+                }
+            } else {
+                vText.innerHTML = "เสียงแตก! ไม่มีใครถูกแขวนคอ";
+                addSystemMessage("⚖️ ไม่มีใครถูกแขวนคอในวันนี้");
+            }
+
+            if (data.dead_is_hunter) {
+                vText.innerHTML += "<br><span style='color:#8e44ad;'>🏹 นายพรานแค้นจัด! กำลังเลือกคนตายตกไปตามกัน...</span>";
+                if (data.hunter_name === myUname) showHunterAction(data.alive_players, 'NIGHT');
+            } else {
+                setTimeout(() => {
+                    const myRole = document.getElementById('my_role').innerText.replace(" (วิญญาณ 👻)", "");
+                    setupNightPhase(myRole, data.targets, data.extra_data);
+                }, 4000);
+            }
+        });
+
+        socket.on('game_over', function(data) {
+            stopTimer();
+            playSfx('win'); 
+            document.getElementById('action_section').style.display = 'none';
+            document.getElementById('day_section').style.display = 'none';
+            document.getElementById('hunter_section').style.display = 'none';
+            document.getElementById('game_over_screen').style.display = 'block';
+            
+            const wText = document.getElementById('winner_text');
+            if (data.winner === 'Villagers') wText.innerHTML = "<span style='color:#2ecc71;'>ชาวบ้านชนะ!</span> 🧑‍🌾";
+            else if (data.winner === 'Fool') wText.innerHTML = "<span style='color:#d35400;'>คนบ้า (" + data.fool_name + ") ชนะ!</span> 🤡";
+            else if (data.winner === 'Serial Killer') wText.innerHTML = "<span style='color:#000;'>ฆาตกรต่อเนื่องชนะ!</span> 🔪🩸";
+            else wText.innerHTML = "<span style='color:#e74c3c;'>หมาป่าชนะ!</span> 🐺";
+            addSystemMessage("--- 🏁 จบเกม! ---");
+        });
+
+        // ---------------- ระบบแชท ----------------
+        window.onclick = function(event) {
+            const modal = document.getElementById('manual_modal');
+            if (event.target == modal) { modal.style.display = "none"; }
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat_input');
+            const msg = input.value.trim();
+            if (!msg || isPlayerDead) return;
+            
+            const username = document.getElementById('username').value.trim();
+            const isWolfChat = document.getElementById('wolf_chat_toggle') ? document.getElementById('wolf_chat_toggle').checked : false;
+            
+            socket.emit('send_message', { room_code: currentRoomCode, username: username, message: msg, is_wolf_chat: isWolfChat });
+            input.value = '';
+        }
+
+        socket.on('receive_message', function(data) {
+            const chatBox = document.getElementById('chat_box');
+            const p = document.createElement('div');
+            p.className = 'chat-msg';
+            if (data.is_wolf) p.innerHTML = `<span class="wolf-msg">[ลับ🐺] ${data.sender}:</span> <span style="color:#d63031;">${data.message}</span>`;
+            else p.innerHTML = `<b>${data.sender}:</b> ${data.message}`;
+            chatBox.appendChild(p); chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        function addSystemMessage(text) {
+            const chatBox = document.getElementById('chat_box');
+            const p = document.createElement('div');
+            p.className = 'chat-msg sys-msg'; p.innerText = text;
+            chatBox.appendChild(p); chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
