@@ -57,7 +57,10 @@
 
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2 id="main_title" style="margin: 0;">หมู่บ้าน Werewolf 🐺</h2>
-        <button onclick="document.getElementById('manual_modal').style.display='block'" style="background-color: #17a2b8; width: auto; padding: 8px 15px;">📖 คู่มือตัวละคร</button>
+        <div>
+            <button onclick="document.getElementById('manual_modal').style.display='block'" style="background-color: #17a2b8; width: auto; padding: 8px 15px; color: white; border: none; border-radius: 5px; cursor: pointer;">📖 คู่มือตัวละคร</button>
+            <button onclick="leaveRoom()" style="background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-left: 10px;">🚪 ออกจากห้อง</button>
+        </div>
     </div>
     <hr>
 
@@ -259,12 +262,16 @@
             
             // 🟢 บันทึกชื่อลงความจำเบราว์เซอร์
             localStorage.setItem('werewolf_username', username);
-            
+            localStorage.setItem('werewolf_room', roomCode);
             socket.emit('join_room', { username: username, room_code: roomCode });
         }
 
         socket.on('room_created', function(data) {
             isHost = true; currentRoomCode = data.room_code;
+            
+            // 🟢 ให้โฮสต์จำรหัสห้องที่เซิร์ฟเวอร์สุ่มมาให้ด้วย
+            localStorage.setItem('werewolf_room', data.room_code);
+            
             document.getElementById('lobby_area').style.display = 'none';
             document.getElementById('room_details').style.display = 'block';
             document.getElementById('host_controls').style.display = 'block';
@@ -562,6 +569,7 @@
         });
 
         socket.on('game_over', function(data) {
+            localStorage.removeItem('werewolf_room');
             stopTimer();
             playSfx('win'); 
             document.getElementById('action_section').style.display = 'none';
@@ -719,6 +727,29 @@ function checkDeadStatusAndMic() {
     }
 }
 
+// ระบบดึงรหัสห้องและชื่อจากความจำเบราว์เซอร์
+        window.onload = function() {
+            const savedUsername = localStorage.getItem('werewolf_username');
+            const savedRoom = localStorage.getItem('werewolf_room');
+            
+            if (savedUsername) {
+                document.getElementById('username').value = savedUsername;
+            }
+            if (savedRoom) {
+                document.getElementById('room_code_input').value = savedRoom;
+                // ถ้ามีทั้งชื่อและห้อง ให้พยายาม Join กลับเข้าไปอัตโนมัติ
+                if (savedUsername && savedRoom) {
+                    joinRoom();
+                }
+            }
+        };
+
+function leaveRoom() {
+            if(confirm("คุณต้องการออกจากห้องและกลับไปหน้าแรกใช่หรือไม่?")) {
+                localStorage.removeItem('werewolf_room'); // ล้างความจำรหัสห้อง
+                location.reload(); // รีเฟรชหน้าเพื่อกลับไปล็อบบี้
+            }
+        }       
     </script>
 </body>
 </html>

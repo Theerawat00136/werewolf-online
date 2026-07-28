@@ -227,6 +227,7 @@ def handle_night_action(data):
     # ⏳ โค้ดเดิมที่หายไป: เช็คว่าอาชีพที่ตื่นกลางคืน โหวตครบทุกคนหรือยัง
     night_count = room_extras.get(room_code, {}).get('night_count', 1)
     
+    # อาชีพทั้งหมดที่ต้องกดคำสั่งตอนกลางคืน
     active_roles = ['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Harlot', 'Serial Killer']
     if night_count == 1:
         active_roles.append('Cupid')
@@ -314,16 +315,19 @@ def resolve_night(room_code, players_in_room):
 
     final_dead_names, dead_is_hunter, hunter_name = process_deaths(room_code, list(initial_dead))
             
-    # 5. ผู้หยั่งรู้ส่อง (ลอจิกหลอกตา)
+# 5. ผู้หยั่งรู้ส่อง (ลอจิกหลอกตา)
     if seer_target and seer_target != "SKIP" and seer_username:
         target_user = User.query.filter_by(username=seer_target).first()
         if target_user:
             target_player = PlayerStatus.query.filter_by(user_id=target_user.id, room_id=room.id).first()
             seen_role = target_player.role_name
-            # ลอจิกหลอกตาของ Alpha Wolf และ Lycan
-            if seen_role == 'Alpha Wolf': seen_role = 'Villager'
-            elif seen_role == 'Lycan': seen_role = 'Werewolf'
-            elif seen_role == 'Traitor': seen_role = 'Villager'
+            
+            # 🟢 ลอจิกใหม่: ถ้าเป็น Werewolf หรือ Lycan ให้เห็นเป็น 'Werewolf' นอกนั้นเห็นเป็น 'Villager' ทั้งหมด
+            if seen_role in ['Werewolf', 'Lycan']:
+                seen_role = 'Werewolf'
+            else:
+                seen_role = 'Villager' # ครอบคลุม Alpha Wolf, Bodyguard, Witch, Traitor ฯลฯ
+                
             emit('seer_result', {'target': seer_target, 'role': seen_role}, to=f"private_{seer_username}")
             
     night_actions[room_code] = {} 
