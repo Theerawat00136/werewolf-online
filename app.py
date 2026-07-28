@@ -145,22 +145,26 @@ def check_game_over(room_code):
     alive_roles = [p.role_name for p in alive_players]
     
     sk_alive = 'Serial Killer' in alive_roles
-    werewolf_team = ['Werewolf', 'Alpha Wolf']
-    werewolves_count = sum(1 for r in alive_roles if r in werewolf_team)
     total_alive = len(alive_roles)
 
-    # เงื่อนไขฆาตกรต่อเนื่อง (ถ้าเหลือ 2 คนรวมตัวเอง หรือเหลือตัวเองคนเดียว)
+    # นับจำนวนหมาป่าแท้ๆ (ใช้เช็กกรณีหมาป่าตายหมดเกลี้ยง)
+    actual_wolves = sum(1 for r in alive_roles if r in ['Werewolf', 'Alpha Wolf'])
+    
+    # นับกำลังพลรวมทีมหมาป่า (รวมคนทรยศเข้าไปด้วย เพื่อเอาไว้ตัดสินชัยชนะ)
+    wolf_team_total = sum(1 for r in alive_roles if r in ['Werewolf', 'Alpha Wolf', 'Traitor'])
+
+    # เงื่อนไขฆาตกรต่อเนื่องชนะ
     if sk_alive and total_alive <= 2:
         emit('game_over', {'winner': 'Serial Killer'}, to=room_code)
         return True
     
-    # เงื่อนไขชาวบ้านชนะ (หมาป่าตายหมด และฆาตกรตายแล้ว)
-    elif werewolves_count == 0 and not sk_alive:
+    # เงื่อนไขชาวบ้านชนะ (หมาป่าแท้ตายหมด และฆาตกรตายแล้ว)
+    elif actual_wolves == 0 and not sk_alive:
         emit('game_over', {'winner': 'Villagers'}, to=room_code)
         return True
         
-    # เงื่อนไขหมาป่าชนะ (จำนวนหมาป่า >= ชาวบ้าน และฆาตกรตายแล้ว)
-    elif werewolves_count >= (total_alive - werewolves_count) and not sk_alive:
+    # เงื่อนไขหมาป่าชนะ (ทีมหมาป่ารวมคนทรยศ >= ฝั่งตรงข้าม และฆาตกรตายแล้ว)
+    elif wolf_team_total >= (total_alive - wolf_team_total) and not sk_alive:
         emit('game_over', {'winner': 'Werewolves'}, to=room_code)
         return True
         
@@ -319,6 +323,7 @@ def resolve_night(room_code, players_in_room):
             # ลอจิกหลอกตาของ Alpha Wolf และ Lycan
             if seen_role == 'Alpha Wolf': seen_role = 'Villager'
             elif seen_role == 'Lycan': seen_role = 'Werewolf'
+            elif seen_role == 'Traitor': seen_role = 'Villager'
             emit('seer_result', {'target': seer_target, 'role': seen_role}, to=f"private_{seer_username}")
             
     night_actions[room_code] = {} 

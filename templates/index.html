@@ -414,12 +414,15 @@
             if (isAuto) document.getElementById('action_status').innerText = "⏳ หมดเวลา! ระบบทำการข้ามตาของคุณ";
             else document.getElementById('action_status').innerText = "✅ บันทึกแล้ว รอผู้เล่นอื่น...";
         }
-
         socket.on('seer_result', function(data) {
+            // 1. แสดงกล่องป๊อปอัปตรงกลางจอ
             document.getElementById('seer_result_box').style.display = 'block';
             document.getElementById('seer_text').innerText = data.target + " คือ " + data.role;
+            
+            // 2. แสดงข้อความในช่องแชท
+            addSystemMessage(`🔮 [นิมิตหมาย]: คุณเพ่งมองไปที่ ${data.target} และพบว่าเขามีบทบาทเป็น... [${data.role}]`);
         });
-
+        
         socket.on('morning_comes', function(data) {
             document.body.classList.remove('night-mode');
             playSfx('morning'); 
@@ -715,7 +718,7 @@ function checkDeadStatusAndMic() {
         if (isMicOn) toggleMic();
     }
 }
-// ================================================================
+
     </script>
 </body>
 </html>
