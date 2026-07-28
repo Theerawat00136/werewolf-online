@@ -67,7 +67,13 @@ def handle_create_room(data):
 def handle_join_room(data):
     username = data.get('username')
     room_code = data.get('room_code')
+    
+    if not username or not room_code:
+        return
+        
     room = GameRoom.query.filter_by(room_code=room_code).first()
+    if not room:
+        return
 
     user = User.query.filter_by(username=username).first()
     if not user:
@@ -77,35 +83,35 @@ def handle_join_room(data):
 
     existing_player = PlayerStatus.query.filter_by(user_id=user.id, room_id=room.id).first()
     if not existing_player:
-        new_player = PlayerStatus(user_id=user.id, room_id=room.id)
-        db.session.add(new_player)
+        existing_player = PlayerStatus(user_id=user.id, room_id=room.id)
+        db.session.add(existing_player)
         db.session.commit()
 
     join_room(room_code)
     join_room(f"private_{username}")
-    players_in_room = PlayerStatus.query.filter_by(room_id=room.id).all()
-    player_names = [User.query.get(p.user_id).username for p in players_in_room]
-    emit('join_success', {'room_code': room_code})
-    emit('player_joined', {'players': player_names}, to=room_code)
-
-# เก็บข้อมูล Peer ID ของคนในห้อง
-room_voices = {}
-
-@socketio.on('register_voice_peer')
-def handle_voice_peer(data):
-    room_code = data.get('room_code')
-    username = data.get('username')
-    peer_id = data.get('peer_id')
     
-    if not room_code:
-        return
+    # 🟢 ลอจิกใหม่: เช็กว่าถ้าเกมกำลังเล่นอยู่ (ไม่ใช่หน้าจอรอก่อนเริ่ม)
+    if getattr(room, 'status', None) in ['NIGHT', 'DAY']:
+        # 1. ส่งคำสั่งให้หน้าเว็บข้าม Lobby ทันที
+        emit('game_started', {'message': 'กำลังดึงกลับเข้าสู่เกม...'}, to=f"private_{username}")
         
-    if room_code not in room_voices:
-        room_voices[room_code] = {}
+        # 2. ส่งบทบาทเดิมและรายชื่อเป้าหมายกลับไปให้หน้าเว็บแสดงผล
+        alive_players = [User.query.get(p.user_id).username for p in PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all()]
+        targets = alive_players if existing_player.role_name in ['Bodyguard', 'Cupid'] else [p for p in alive_players if p != username]
         
-    room_voices[room_code][username] = peer_id
-    emit('update_voice_peers', room_voices[room_code], to=room_code)
-    
+        emit('receive_role', {
+            'role': existing_player.role_name, 
+            'targets': targets, 
+            'extra_data': room_extras.get(room_code, {})
+        }, to=f"private_{username}")
+        
+    else:
+        # 🟢 กรณีปกติ: เกมยังไม่เริ่ม ให้อยู่หน้า Lobby ตามเดิม
+        players_in_room = PlayerStatus.query.filter_by(room_id=room.id).all()
+        player_names = [User.query.get(p.user_id).username for p in players_in_room]
+        emit('join_success', {'room_code': room_code})
+        emit('player_joined', {'players': player_names}, to=room_code)
+
 @socketio.on('start_game')
 def handle_start_game(data):
     room_code = data.get('room_code')
@@ -127,12 +133,24 @@ def handle_start_game(data):
     
     room_extras[room_code] = {'lovers': [], 'witch_heal': True, 'witch_poison': True, 'night_count': 1}
     
-    emit('game_started', {'message': 'เข้าสู่คืนแรก...'}, to=room_code)
+    emit('game_started', {'message': 'เข้าสู่คืนแรก...', 'roles_summary': roles_dict}, to=room_code)
     
     alive_players = [User.query.get(p.user_id).username for p in players_in_room]
     for player in players_in_room:
         user = User.query.get(player.user_id)
-        targets = alive_players if player.role_name in ['Bodyguard', 'Cupid'] else [p for p in alive_players if p != user.username]
+        # 🟢 ลอจิกใหม่: แยกเงื่อนไขการเลือกเป้าหมายให้ชัดเจน
+        if player.role_name == 'Bodyguard':
+            # คืนแรกยังไม่มีใครถูกปกป้อง แต่ใส่เผื่อไว้ดึงค่า
+            last_bg_target = room_extras[room_code].get('bg_last_target')
+            targets = [p for p in alive_players if p != last_bg_target]
+        elif player.role_name in ['Werewolf', 'Alpha Wolf']:
+            # หมาป่าจะเห็นและฆ่าหมาป่าด้วยกันเองไม่ได้
+            wolves = [User.query.get(w.user_id).username for w in players_in_room if w.role_name in ['Werewolf', 'Alpha Wolf']]
+            targets = [p for p in alive_players if p not in wolves]
+        elif player.role_name == 'Cupid':
+            targets = alive_players
+        else:
+            targets = [p for p in alive_players if p != user.username]
         emit('receive_role', {
             'role': player.role_name, 
             'targets': targets, 
@@ -401,29 +419,30 @@ def handle_vote(data):
         alive_players_now = [User.query.get(p.user_id).username for p in PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all()]
         dead_msg = ", ".join(final_dead_names) if final_dead_names else None
         
-        for player in PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all():
-            user = User.query.get(player.user_id)
-            targets = alive_players_now if player.role_name in ['Bodyguard', 'Cupid'] else [p for p in alive_players_now if p != user.username]
-            emit('start_new_night', {
-                'executed_player': dead_msg, 
-                'targets': targets, 
-                'dead_is_hunter': dead_is_hunter,
-                'hunter_name': hunter_name,
-                'alive_players': alive_players_now,
-                'extra_data': extras
-            }, to=f"private_{user.username}")
-
-        dead_players = PlayerStatus.query.filter_by(room_id=room.id, is_alive=False).all()
-        for player in dead_players:
-            user = User.query.get(player.user_id)
-            emit('start_new_night', {
-                'executed_player': dead_msg, 
-                'targets': [], 
-                'dead_is_hunter': dead_is_hunter,
-                'hunter_name': hunter_name,
-                'alive_players': alive_players_now,
-                'extra_data': extras
-            }, to=f"private_{user.username}")
+    for player in PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all():
+        user = User.query.get(player.user_id)
+        
+        # 🟢 ลอจิกใหม่: แยกเงื่อนไขการเลือกเป้าหมายตอนเริ่มคืนใหม่
+        if player.role_name == 'Bodyguard':
+            last_bg_target = extras.get('bg_last_target')
+            targets = [p for p in alive_players_now if p != last_bg_target]
+        elif player.role_name in ['Werewolf', 'Alpha Wolf']:
+            wolves = [User.query.get(w.user_id).username for w in PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all() if w.role_name in ['Werewolf', 'Alpha Wolf']]
+            targets = [p for p in alive_players_now if p not in wolves]
+        elif player.role_name == 'Cupid':
+            targets = alive_players_now
+        else:
+            targets = [p for p in alive_players_now if p != user.username]
+            
+        # 🟢 คำสั่ง emit ต้องอยู่ระดับเดียวกับ if ด้านบน
+        emit('start_new_night', {
+            'executed_player': dead_msg,
+            'targets': targets,
+            'dead_is_hunter': dead_is_hunter,
+            'hunter_name': hunter_name,
+            'alive_players': alive_players_now,
+            'extra_data': extras
+        }, to=f"private_{user.username}")
 
 @socketio.on('submit_hunter_shoot')
 def handle_hunter_shoot(data):

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Werewolf Ultimate - Definitive Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <style>
         body { font-family: 'Prompt', sans-serif; padding: 20px; max-width: 800px; margin: auto; transition: background-color 0.5s ease, color 0.5s ease; background-color: #f0f4f8; color: #333; }
 
@@ -63,11 +62,6 @@
         </div>
     </div>
     <hr>
-
-            <!-- ปุ่มเปิด/ปิดไมค์คุยเสียง -->
-    <div style="text-align: center; margin: 15px 0;">
-        <button id="mic_btn" onclick="toggleMic()" style="background-color: #10b981; color: white; padding: 10px 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; width: auto;">🎙️ เปิดไมค์คุย (Voice Chat)</button>
-        <audio id="remote_audio" autoplay style="display:none;"></audio>
 
     </div>
     <!-- Modal คู่มือการเล่น -->
@@ -142,7 +136,10 @@
 
     <!-- โซนเกมเพลย์ -->
     <div id="game_screen" style="display: none; text-align: center;" class="fade-in">
-        <div id="timer_display">⏳ <span id="time_left">0</span></div>
+        <!-- 🟢 กล่องแสดงเวลา -->
+        <div id="phase_timer_display" style="font-size: 20px; font-weight: bold; color: #ff4757; text-align: center; margin-bottom: 15px; background-color: #2c3e50; padding: 10px; border-radius: 8px; display: none;">
+            ⏳ เวลาเหลือ: <span id="time_left">00:00</span>
+        </div>
         <h2 id="phase_title">-</h2>
         <h3 style="color: #888; margin-bottom: 0;">บทบาทของคุณ</h3>
         <h1 id="my_role" style="color: #007bff; margin-top: 5px; font-size: 2.5em;">-</h1>
@@ -316,8 +313,19 @@
             document.getElementById('room_details').style.display = 'none';
             document.getElementById('game_screen').style.display = 'block';
             document.getElementById('chat_section').style.display = 'block';
-            addSystemMessage("--- 🌕 เริ่มเกมแล้ว! ---");
-            playSfx('start'); 
+            
+            // 🟢 เพิ่มส่วนนี้: โชว์สรุปบทบาทตอนเริ่มเกม
+            let summaryText = "บทบาทในเกมนี้: ";
+            if(data.roles_summary) {
+                for (const [role, count] of Object.entries(data.roles_summary)) {
+                    if (count > 0) summaryText += `${role} x${count}, `;
+                }
+            }
+            addSystemMessage(`--- 🌕 เริ่มเกมแล้ว! ---<br><small style="color:#ffd700;">${summaryText}</small>`);
+            
+            // 🟢 เพิ่มส่วนนี้: เริ่มจับเวลากลางคืน 1 นาที (60 วินาที)
+            startTimer(60); 
+            playSfx('start');
         });
 
         socket.on('receive_role', function(data) {
@@ -433,6 +441,7 @@
         socket.on('morning_comes', function(data) {
             document.body.classList.remove('night-mode');
             playSfx('morning'); 
+            startTimer(210);
 
             document.getElementById('phase_title').innerText = "☀️ รุ่งสาง";
             document.getElementById('action_section').style.display = 'none';
@@ -551,6 +560,8 @@
                 addSystemMessage("⚖️ " + data.executed_player + " เสียชีวิตจากการโหวต");
                 if (data.executed_player.includes(myUname) && !isPlayerDead) { 
                     isPlayerDead = true; document.getElementById('my_role').innerText += " (วิญญาณ 👻)"; 
+                    document.getElementById('chat_input').disabled = true;
+                    document.getElementById('chat_input').placeholder = "วิญญาณสื่อสารไม่ได้...";
                 }
             } else {
                 vText.innerHTML = "เสียงแตก! ไม่มีใครถูกแขวนคอ";
@@ -564,6 +575,7 @@
                 setTimeout(() => {
                     const myRole = document.getElementById('my_role').innerText.replace(" (วิญญาณ 👻)", "");
                     setupNightPhase(myRole, data.targets, data.extra_data);
+                    startTimer(60);
                 }, 4000);
             }
         });
@@ -571,18 +583,30 @@
         socket.on('game_over', function(data) {
             localStorage.removeItem('werewolf_room');
             stopTimer();
-            playSfx('win'); 
+            
+            // 🟢 เพิ่ม: หยุดเวลาตัวใหม่ที่เราเพิ่งสร้าง
+            clearInterval(countdownInterval); 
+            document.getElementById('phase_timer_display').style.display = 'none';
+            
+            playSfx('win');
             document.getElementById('action_section').style.display = 'none';
             document.getElementById('day_section').style.display = 'none';
             document.getElementById('hunter_section').style.display = 'none';
             document.getElementById('game_over_screen').style.display = 'block';
-            
+
             const wText = document.getElementById('winner_text');
             if (data.winner === 'Villagers') wText.innerHTML = "<span style='color:#2ecc71;'>ชาวบ้านชนะ!</span> 🧑‍🌾";
             else if (data.winner === 'Fool') wText.innerHTML = "<span style='color:#d35400;'>คนบ้า (" + data.fool_name + ") ชนะ!</span> 🤡";
             else if (data.winner === 'Serial Killer') wText.innerHTML = "<span style='color:#000;'>ฆาตกรต่อเนื่องชนะ!</span> 🔪🩸";
             else wText.innerHTML = "<span style='color:#e74c3c;'>หมาป่าชนะ!</span> 🐺";
-            addSystemMessage("--- 🏁 จบเกม! ---");
+            
+            // 🟢 เพิ่ม: โชว์รายชื่อคนที่เป็นหมาป่าต่อท้ายในหน้าจอจบเกมและในแชท
+            if (data.werewolves && data.werewolves.length > 0) {
+                wText.innerHTML += `<br><span style='font-size: 0.6em; color: #ffcccc;'>(ผู้เล่นที่เป็นหมาป่า: ${data.werewolves.join(', ')})</span>`;
+                addSystemMessage(`--- 🏁 จบเกม! ---<br>🐺 หมาป่าคือ: ${data.werewolves.join(', ')}`);
+            } else {
+                addSystemMessage("--- 🏁 จบเกม! ---");
+            }
         });
 
         // ---------------- ระบบแชท ----------------
@@ -619,106 +643,6 @@
             chatBox.appendChild(p); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-// ================= ระบบ Voice Chat (อัปเดตใหม่) =================
-let localStream = null;
-let peer = null;
-let isMicOn = false;
-
-function toggleMic() {
-    // เช็คตัวแปร isPlayerDead (ถ้ามี)
-    if (typeof isPlayerDead !== 'undefined' && isPlayerDead) {
-        alert("คุณเสียชีวิตแล้ว ไม่สามารถเปิดไมค์พูดได้ครับ!");
-        return;
-    }
-    
-    const micBtn = document.getElementById('mic_btn');
-
-    if (!isMicOn) {
-        navigator.mediaDevices.getUserMedia({ 
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: false,
-            autoGainControl: false,
-            latency: 0
-        }, 
-        video: false 
-    })  
-            .then((stream) => {
-                localStream = stream;
-                isMicOn = true;
-                micBtn.innerText = "🛑 ปิดไมค์";
-                micBtn.style.background = "#ef4444";
-                
-                // ถ้ายังไม่มี Peer ให้สร้างใหม่ตอนเปิดไมค์ครั้งแรก
-                if (!peer) {
-                    peer = new Peer();
-                    
-                    peer.on('open', (id) => {
-                        // ดึงชื่อผู้เล่นจากในระบบ (อ้างอิงจากช่อง input เดิม)
-                        let myUsername = document.getElementById('username') ? document.getElementById('username').value.trim() : "Player_" + id;
-                        socket.emit('register_voice_peer', { room_code: currentRoomCode, username: myUsername, peer_id: id });
-                    });
-
-                    // เมื่อมีคนโทรมา ให้รับสายและส่งเสียงเรากลับไป
-                    peer.on('call', (call) => {
-                        call.answer(localStream);
-                        call.on('stream', (remoteStream) => {
-                            playRemoteAudio(call.peer, remoteStream);
-                        });
-                    });
-                } else {
-                    // ถ้ามี Peer อยู่แล้ว แค่ประกาศบอกทุกคนอีกรอบ
-                    let myUsername = document.getElementById('username') ? document.getElementById('username').value.trim() : "Player_" + peer.id;
-                    socket.emit('register_voice_peer', { room_code: currentRoomCode, username: myUsername, peer_id: peer.id });
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert("กรุณาอนุญาตการใช้งานไมโครโฟนในเบราว์เซอร์");
-            });
-    } else {
-        // ปิดไมค์
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-            localStream = null;
-        }
-        isMicOn = false;
-        micBtn.innerText = "🎙️ เปิดไมค์คุย (Voice Chat)";
-        micBtn.style.background = "#10b981";
-    }
-}
-
-// รับรายชื่อคนเปิดไมค์จาก Server แล้วทำการ "โทรออก" หาพวกเขา
-socket.on('update_voice_peers', function(peers) {
-    if (!localStream || !peer) return; // ถ้าเราไม่ได้เปิดไมค์อยู่ ไม่ต้องโทร
-    
-    for (let user in peers) {
-        let remotePeerId = peers[user];
-        
-        // โทรหาทุกคนที่ไม่ใช่ตัวเราเอง
-        if (remotePeerId !== peer.id) {
-            const call = peer.call(remotePeerId, localStream);
-            call.on('stream', (remoteStream) => {
-                playRemoteAudio(remotePeerId, remoteStream);
-            });
-        }
-    }
-});
-
-// ฟังก์ชันสร้างลำโพงแยกให้ผู้เล่นแต่ละคน
-function playRemoteAudio(peerId, stream) {
-    let audioId = 'audio_' + peerId;
-    let audioElement = document.getElementById(audioId);
-    
-    if (!audioElement) {
-        audioElement = document.createElement('audio');
-        audioElement.id = audioId;
-        audioElement.autoplay = true;
-        document.body.appendChild(audioElement);
-    }
-    audioElement.srcObject = stream;
-}
-
 function checkDeadStatusAndMic() {
     if (typeof isPlayerDead !== 'undefined' && isPlayerDead) {
         const micBtn = document.getElementById('mic_btn');
@@ -750,6 +674,38 @@ function leaveRoom() {
                 location.reload(); // รีเฟรชหน้าเพื่อกลับไปล็อบบี้
             }
         }       
+// 🟢 ระบบจับเวลาและการส่งข้ามอัตโนมัติ (Auto-skip)
+        let countdownInterval;
+
+        function startTimer(seconds) {
+            clearInterval(countdownInterval); // ล้างเวลาเก่าก่อนเผื่อมีการนับค้างอยู่
+            document.getElementById('phase_timer_display').style.display = 'block';
+            
+            let timeLeft = seconds;
+            countdownInterval = setInterval(() => {
+                let m = Math.floor(timeLeft / 60);
+                let s = timeLeft % 60;
+                document.getElementById('time_left').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    autoSubmitAction(); // เวลาหมด บังคับข้ามทันที
+                }
+                timeLeft--;
+            }, 1000);
+        }
+
+        function autoSubmitAction() {
+            const roomCode = document.getElementById('room_code_input').value;
+            const username = document.getElementById('username').value;
+            
+            // ส่งคำสั่ง SKIP ไปให้เซิร์ฟเวอร์ เพื่อไม่ให้เกมค้างรอคนที่เน็ตหลุด
+            socket.emit('submit_night_action', {
+                room_code: roomCode, username: username,
+                action_data: { target: 'SKIP', heal: false, poison: 'SKIP', target1: 'SKIP', target2: 'SKIP' }
+            });
+            socket.emit('submit_vote', { room_code: roomCode, username: username, target: 'SKIP' });
+        }
     </script>
 </body>
 </html>
