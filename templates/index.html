@@ -5,37 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Werewolf Ultimate - Definitive Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 650px; margin: auto; transition: 1s ease; }
-        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        input[type="text"], button, select { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; font-size: 1em; }
-        button { background-color: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
-        button:hover { background-color: #218838; }
-        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        body { font-family: 'Prompt', sans-serif; padding: 20px; max-width: 800px; margin: auto; transition: background-color 0.5s ease, color 0.5s ease; background-color: #f0f4f8; color: #333; }
+
+        /* กล่องหลัก */
+        .box { background: #ffffff; padding: 25px; margin-bottom: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+
+        /* Input และ ปุ่มพื้นฐาน */
+        input[type="text"], select { padding: 12px 15px; margin: 8px 0; width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 1em; background-color: #f8fafc; transition: 0.2s; }
+        input[type="text"]:focus, select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+
+        button { padding: 12px 20px; width: 100%; background-color: #3b82f6; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; font-size: 1em; transition: all 0.2s ease; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3); margin-top: 5px; }
+        button:hover:not(:disabled) { background-color: #2563eb; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(59, 130, 246, 0.4); }
+        button:disabled { background-color: #94a3b8; box-shadow: none; cursor: not-allowed; transform: none; }
+
+        /* จัดระเบียบการ์ดอาชีพตอนสร้างห้อง */
+        .role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 15px; }
+        .role-selector { display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap; background: #f8fafc; padding: 8px 12px; border-radius: 10px; border: 1px solid #e2e8f0; font-weight: 500; min-height: 50px; box-sizing: border-box; }
+        .role-selector label, .role-selector span { font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+        .role-selector button { width: 30px; height: 30px; padding: 0; margin: 0 2px; border-radius: 6px; display: inline-flex; justify-content: center; align-items: center; font-size: 1.2em; box-shadow: none; margin-top: 0; flex-shrink: 0; }
         
-        .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .role-selector { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.03); padding: 5px 10px; border-radius: 5px; font-size: 0.9em; }
-        .role-selector button { width: 30px; padding: 5px; margin: 0 2px; border-radius: 3px; }
-        
-        body.night-mode { background-color: #1a1a2e; color: #e0e0e0; }
-        body.night-mode .box { border-color: #333; background-color: #16213e; }
-        body.night-mode .role-selector { background: rgba(255,255,255,0.05); }
-        
-        #chat_section { border: 1px solid #ccc; border-radius: 8px; display: none; background: #fff; color: #000; }
-        #chat_box { height: 200px; overflow-y: auto; padding: 10px; border-bottom: 1px solid #ccc; font-size: 0.9em; text-align: left; background: #fdfdfd; }
-        .chat-msg { margin-bottom: 6px; }
-        .wolf-msg { color: #dc3545; font-weight: bold; background: #ffebeb; padding: 2px 5px; border-radius: 4px; }
-        .sys-msg { color: #8e44ad; font-style: italic; font-weight: bold; text-align: center; margin: 10px 0; border-top: 1px dashed #ccc; padding-top: 5px;}
-        #timer_display { font-size: 2.5em; font-weight: bold; color: #e74c3c; margin: 15px 0; display: none; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
-        
+        /* 🌙 โหมดกลางคืนของส่วนการ์ดอาชีพ (Night Mode) */
+        body.night-mode .role-selector { background: #1e293b; border-color: #334155; }
+
+        /* ส่วนของแชทและข้อความเกม */
+        #chat_section { border: none; border-radius: 12px; display: none; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; }
+        body.night-mode #chat_section { background: #1e293b; }
+        #chat_box { height: 250px; overflow-y: auto; padding: 15px; font-size: 0.95em; line-height: 1.5; }
+        .chat-msg { margin-bottom: 8px; }
+
+        .wolf-msg { color: #ef4444; font-weight: bold; background: #fee2e2; padding: 6px 12px; border-radius: 8px; display: inline-block; }
+        body.night-mode .wolf-msg { background: #7f1d1d; color: #fca5a5; }
+
+        .sys-msg { color: #6366f1; font-style: italic; font-weight: bold; text-align: center; margin: 15px 0; border-top: 1px dashed #cbd5e1; padding-top: 15px; }
+
+        #timer_display { font-size: 3em; font-weight: bold; color: #ef4444; margin: 15px 0; display: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
+
         /* Modal คู่มือ */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
-        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 8px; color: #333; text-align: left;}
-        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .close-btn:hover { color: black; }
-        .role-desc { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
-        .role-desc h4 { margin: 0 0 5px 0; }
-        
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+        .modal-content { background-color: #ffffff; margin: 5% auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 600px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        body.night-mode .modal-content { background-color: #1e293b; color: #f8fafc; }
+        .close-btn { color: #94a3b8; float: right; font-size: 28px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .close-btn:hover { color: #ef4444; }
+
         .fade-in { animation: fadeIn 0.5s; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -47,7 +60,13 @@
         <button onclick="document.getElementById('manual_modal').style.display='block'" style="background-color: #17a2b8; width: auto; padding: 8px 15px;">📖 คู่มือตัวละคร</button>
     </div>
     <hr>
-    
+
+            <!-- ปุ่มเปิด/ปิดไมค์คุยเสียง -->
+    <div style="text-align: center; margin: 15px 0;">
+        <button id="mic_btn" onclick="toggleMic()" style="background-color: #10b981; color: white; padding: 10px 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; width: auto;">🎙️ เปิดไมค์คุย (Voice Chat)</button>
+        <audio id="remote_audio" autoplay style="display:none;"></audio>
+
+    </div>
     <!-- Modal คู่มือการเล่น -->
     <div id="manual_modal" class="modal">
         <div class="modal-content fade-in">
@@ -588,6 +607,115 @@
             p.className = 'chat-msg sys-msg'; p.innerText = text;
             chatBox.appendChild(p); chatBox.scrollTop = chatBox.scrollHeight;
         }
+
+// ================= ระบบ Voice Chat (อัปเดตใหม่) =================
+let localStream = null;
+let peer = null;
+let isMicOn = false;
+
+function toggleMic() {
+    // เช็คตัวแปร isPlayerDead (ถ้ามี)
+    if (typeof isPlayerDead !== 'undefined' && isPlayerDead) {
+        alert("คุณเสียชีวิตแล้ว ไม่สามารถเปิดไมค์พูดได้ครับ!");
+        return;
+    }
+    
+    const micBtn = document.getElementById('mic_btn');
+
+    if (!isMicOn) {
+        navigator.mediaDevices.getUserMedia({ 
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: false,
+            autoGainControl: false,
+            latency: 0
+        }, 
+        video: false 
+    })  
+            .then((stream) => {
+                localStream = stream;
+                isMicOn = true;
+                micBtn.innerText = "🛑 ปิดไมค์";
+                micBtn.style.background = "#ef4444";
+                
+                // ถ้ายังไม่มี Peer ให้สร้างใหม่ตอนเปิดไมค์ครั้งแรก
+                if (!peer) {
+                    peer = new Peer();
+                    
+                    peer.on('open', (id) => {
+                        // ดึงชื่อผู้เล่นจากในระบบ (อ้างอิงจากช่อง input เดิม)
+                        let myUsername = document.getElementById('username') ? document.getElementById('username').value.trim() : "Player_" + id;
+                        socket.emit('register_voice_peer', { room_code: currentRoomCode, username: myUsername, peer_id: id });
+                    });
+
+                    // เมื่อมีคนโทรมา ให้รับสายและส่งเสียงเรากลับไป
+                    peer.on('call', (call) => {
+                        call.answer(localStream);
+                        call.on('stream', (remoteStream) => {
+                            playRemoteAudio(call.peer, remoteStream);
+                        });
+                    });
+                } else {
+                    // ถ้ามี Peer อยู่แล้ว แค่ประกาศบอกทุกคนอีกรอบ
+                    let myUsername = document.getElementById('username') ? document.getElementById('username').value.trim() : "Player_" + peer.id;
+                    socket.emit('register_voice_peer', { room_code: currentRoomCode, username: myUsername, peer_id: peer.id });
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("กรุณาอนุญาตการใช้งานไมโครโฟนในเบราว์เซอร์");
+            });
+    } else {
+        // ปิดไมค์
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        isMicOn = false;
+        micBtn.innerText = "🎙️ เปิดไมค์คุย (Voice Chat)";
+        micBtn.style.background = "#10b981";
+    }
+}
+
+// รับรายชื่อคนเปิดไมค์จาก Server แล้วทำการ "โทรออก" หาพวกเขา
+socket.on('update_voice_peers', function(peers) {
+    if (!localStream || !peer) return; // ถ้าเราไม่ได้เปิดไมค์อยู่ ไม่ต้องโทร
+    
+    for (let user in peers) {
+        let remotePeerId = peers[user];
+        
+        // โทรหาทุกคนที่ไม่ใช่ตัวเราเอง
+        if (remotePeerId !== peer.id) {
+            const call = peer.call(remotePeerId, localStream);
+            call.on('stream', (remoteStream) => {
+                playRemoteAudio(remotePeerId, remoteStream);
+            });
+        }
+    }
+});
+
+// ฟังก์ชันสร้างลำโพงแยกให้ผู้เล่นแต่ละคน
+function playRemoteAudio(peerId, stream) {
+    let audioId = 'audio_' + peerId;
+    let audioElement = document.getElementById(audioId);
+    
+    if (!audioElement) {
+        audioElement = document.createElement('audio');
+        audioElement.id = audioId;
+        audioElement.autoplay = true;
+        document.body.appendChild(audioElement);
+    }
+    audioElement.srcObject = stream;
+}
+
+function checkDeadStatusAndMic() {
+    if (typeof isPlayerDead !== 'undefined' && isPlayerDead) {
+        const micBtn = document.getElementById('mic_btn');
+        if (micBtn) micBtn.style.display = 'none';
+        if (isMicOn) toggleMic();
+    }
+}
+// ================================================================
     </script>
 </body>
 </html>

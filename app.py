@@ -88,6 +88,24 @@ def handle_join_room(data):
     emit('join_success', {'room_code': room_code})
     emit('player_joined', {'players': player_names}, to=room_code)
 
+# เก็บข้อมูล Peer ID ของคนในห้อง
+room_voices = {}
+
+@socketio.on('register_voice_peer')
+def handle_voice_peer(data):
+    room_code = data.get('room_code')
+    username = data.get('username')
+    peer_id = data.get('peer_id')
+    
+    if not room_code:
+        return
+        
+    if room_code not in room_voices:
+        room_voices[room_code] = {}
+        
+    room_voices[room_code][username] = peer_id
+    emit('update_voice_peers', room_voices[room_code], to=room_code)
+    
 @socketio.on('start_game')
 def handle_start_game(data):
     room_code = data.get('room_code')
@@ -188,18 +206,31 @@ def handle_night_action(data):
 
     if room_code not in night_actions: night_actions[room_code] = {}
     night_actions[room_code][username] = action_data
-    
+
     room = GameRoom.query.filter_by(room_code=room_code).first()
     players_in_room = PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all()
+
+    # 🐺 โค้ดใหม่: ถ้าเป็นหมาป่า ให้ก็อปปี้เป้าหมายไปให้หมาป่าตัวอื่นทันที
+    current_user_obj = User.query.filter_by(username=username).first()
+    if current_user_obj:
+        current_player = next((p for p in players_in_room if p.user_id == current_user_obj.id), None)
+        if current_player and current_player.role_name in ['Werewolf', 'Alpha Wolf']:
+            for p in players_in_room:
+                if p.role_name in ['Werewolf', 'Alpha Wolf']:
+                    wolf_username = User.query.get(p.user_id).username
+                    night_actions[room_code][wolf_username] = action_data
+
+    # ⏳ โค้ดเดิมที่หายไป: เช็คว่าอาชีพที่ตื่นกลางคืน โหวตครบทุกคนหรือยัง
     night_count = room_extras.get(room_code, {}).get('night_count', 1)
     
     active_roles = ['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Harlot', 'Serial Killer']
     if night_count == 1:
         active_roles.append('Cupid')
-        
+
     active_players = [p for p in players_in_room if p.role_name in active_roles]
     submitted_count = sum(1 for p in active_players if User.query.get(p.user_id).username in night_actions[room_code])
-    
+
+    # ถ้าทุกคนโหวตครบแล้ว ให้เรียกฟังก์ชันสรุปผลกลางคืน
     if submitted_count == len(active_players) and len(active_players) > 0:
         resolve_night(room_code, players_in_room)
 
@@ -390,6 +421,9 @@ def handle_hunter_shoot(data):
     room_code = data.get('room_code')
     target = data.get('target')
     next_phase = data.get('next_phase')
+    room = GameRoom.query.filter_by(room_code=room_code).first()
+    if not room:
+        return
     
     initial_dead = []
     if target and target != "SKIP":
