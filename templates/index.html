@@ -229,19 +229,24 @@
                 }
             } catch(e) {}
         }
-        // ---------------------------------------------------
 
-        function startTimer(seconds, timeoutCallback) {
-            clearInterval(timerInterval);
-            let timeLeft = seconds;
-            document.getElementById('timer_display').style.display = 'block';
-            document.getElementById('time_left').innerText = timeLeft;
-            timerInterval = setInterval(() => {
-                timeLeft--; document.getElementById('time_left').innerText = timeLeft;
-                if (timeLeft <= 0) { clearInterval(timerInterval); timeoutCallback(); }
-            }, 1000);
+        function stopTimer() {
+        // เคลียร์เวลาของทั้งระบบเก่าและระบบใหม่
+        if (typeof countdownInterval !== 'undefined') clearInterval(countdownInterval);
+        if (typeof timerInterval !== 'undefined') clearInterval(timerInterval);
+
+        // ซ่อนกล่องเวลาอันใหม่ (เช็กก่อนว่ามีกล่องนี้อยู่ไหม)
+        const newTimerDisplay = document.getElementById('phase_timer_display');
+        if (newTimerDisplay) {
+            newTimerDisplay.style.display = 'none';
         }
-        function stopTimer() { clearInterval(timerInterval); document.getElementById('timer_display').style.display = 'none'; }
+
+        // ซ่อนกล่องเวลาอันเก่า (เผื่อมีการเรียกใช้จะได้ไม่ Error)
+        const oldTimerDisplay = document.getElementById('timer_display');
+        if (oldTimerDisplay) {
+            oldTimerDisplay.style.display = 'none';
+        }
+    }
 
         function createRoom() {
             const username = document.getElementById('username').value.trim();
@@ -398,10 +403,6 @@
                     contentDiv.innerHTML = `<select id="target1"><option value="SKIP">พักมือหนึ่งคืน (Skip)</option></select>`;
                     populateSelect('target1', targets);
                 }
-                
-                startTimer(30, () => {
-                    if(!document.getElementById('confirm_action_btn').disabled) submitAction(true);
-                });
             } else {
                 actionSection.style.display = 'none';
             }
@@ -677,21 +678,36 @@ function leaveRoom() {
 // 🟢 ระบบจับเวลาและการส่งข้ามอัตโนมัติ (Auto-skip)
         let countdownInterval;
 
-        function startTimer(seconds) {
-            clearInterval(countdownInterval); // ล้างเวลาเก่าก่อนเผื่อมีการนับค้างอยู่
-            document.getElementById('phase_timer_display').style.display = 'block';
+        function startTimer(seconds, customCallback = null) {
+            if (typeof countdownInterval !== 'undefined') clearInterval(countdownInterval);
+            
+            // ดึงกล่องเวลามาแสดง (ใช้ ID ตามที่คุณมีในระบบเป๊ะๆ)
+            const timerBox = document.getElementById('phase_timer_display');
+            if (timerBox) timerBox.style.display = 'block';
             
             let timeLeft = seconds;
+            let m = Math.floor(timeLeft / 60);
+            let s = timeLeft % 60;
+            document.getElementById('time_left').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            
             countdownInterval = setInterval(() => {
+                timeLeft--;
                 let m = Math.floor(timeLeft / 60);
                 let s = timeLeft % 60;
                 document.getElementById('time_left').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
                 
                 if (timeLeft <= 0) {
                     clearInterval(countdownInterval);
-                    autoSubmitAction(); // เวลาหมด บังคับข้ามทันที
+                    
+                    // 🟢 เช็กว่าถ้ามีฟังก์ชันส่งมาด้วย (เช่น ตอนโหวตแขวนคอ 45 วิ) ให้รันฟังก์ชันนั้น
+                    if (customCallback) {
+                        customCallback();
+                    } 
+                    // 🟢 ถ้าไม่มี (เช่น ตอนกลางคืน 60 วิ) ให้รันคำสั่งข้ามอัตโนมัติตามปกติ
+                    else if (typeof autoSubmitAction === 'function') {
+                        autoSubmitAction(); 
+                    }
                 }
-                timeLeft--;
             }, 1000);
         }
 
