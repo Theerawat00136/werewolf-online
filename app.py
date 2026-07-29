@@ -5,7 +5,7 @@ from flask import Flask, render_template, request
 from extensions import db, socketio
 import models
 from models import GameRoom, User, PlayerStatus
-from flask_socketio import emit, join_room
+from flask_socketio import emit, join_room, leave_room
 
 def create_app():
     app = Flask(__name__)
@@ -490,6 +490,74 @@ def handle_chat(data):
             emit('receive_message', {'sender': username, 'message': message, 'is_wolf': True}, to=f"private_{w_user.username}")
     else:
         emit('receive_message', {'sender': username, 'message': message, 'is_wolf': False}, to=room_code)
+
+    # ==========================================
+# 🌟 ฟีเจอร์ 1: เล่นจบแล้วกลับล็อบบี้ให้อยู่ห้องเดิม
+# ==========================================
+@socketio.on('reset_to_lobby')
+def handle_reset_to_lobby(data):
+    room_code = data.get('room_code')
+    room = GameRoom.query.filter_by(room_code=room_code).first()
+    
+    if room:
+        room.status = 'WAITING'  # ปรับสถานะห้องให้เป็นกำลังรอผู้เล่น
+        players = PlayerStatus.query.filter_by(room_id=room.id).all()
+        
+        # ล้างอาชีพและคืนชีพให้ทุกคน
+        for p in players:
+            p.role_name = None
+            p.is_alive = True
+            
+        # ล้างข้อมูลขยะจากเกมรอบที่แล้วทิ้งให้หมด
+        if room_code in room_extras: del room_extras[room_code]
+        if room_code in night_actions: del night_actions[room_code]
+        if room_code in day_votes: del day_votes[room_code]
+            
+        db.session.commit()
+        emit('go_back_to_lobby', to=room_code)
+
+# ==========================================
+# 🌟 ฟีเจอร์ 2: กดออกจากห้อง & โอนหัวหน้าห้องอัตโนมัติ
+# ==========================================
+@socketio.on('leave_room')
+def handle_leave_room(data):
+    username = data.get('username')
+    room_code = data.get('room_code')
+    
+    user = User.query.filter_by(username=username).first()
+    room = GameRoom.query.filter_by(room_code=room_code).first()
+    
+    if user and room:
+        # 1. ลบคนนั้นออกจากฐานข้อมูลห้อง
+        player = PlayerStatus.query.filter_by(user_id=user.id, room_id=room.id).first()
+        if player:
+            db.session.delete(player)
+            db.session.commit()
+            
+        # 2. เตะออกจากระบบ SocketIO
+        leave_room(room_code)
+        leave_room(f"private_{username}")
+        
+        # 3. เช็กว่ายังมีคนเหลือในห้องไหม?
+        remaining_players = PlayerStatus.query.filter_by(room_id=room.id).all()
+        if remaining_players:
+            # 🟢 ถ้ายอดชายคนที่เพิ่งออกไปคือ "หัวหน้าห้อง"
+            if room.host_id == user.id:
+                # โอนตำแหน่ง Host ให้คนแรกที่ยังเหลืออยู่ในห้อง
+                room.host_id = remaining_players[0].user_id
+                db.session.commit()
+            
+            # ประกาศรายชื่อคนในห้องที่อัปเดตใหม่ ให้ทุกคนที่เหลือเห็น
+            player_names = [User.query.get(p.user_id).username for p in remaining_players]
+            emit('player_joined', {'players': player_names}, to=room_code)
+        else:
+            # 🔴 ถ้าห้องว่างเปล่า ไม่มีใครเหลือแล้ว ให้ลบห้องทิ้งไปเลย (ประหยัดพื้นที่ DB)
+            db.session.delete(room)
+            db.session.commit()
+            
+            if room_code in room_extras: del room_extras[room_code]
+            if room_code in night_actions: del night_actions[room_code]
+            if room_code in day_votes: del day_votes[room_code]
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
