@@ -480,7 +480,7 @@
             const select = document.getElementById('hunter_target_select');
             select.innerHTML = "";
             alivePlayers.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; select.appendChild(opt); });
-            startTimer(20, () => { if(!document.getElementById('hunter_shoot_btn').disabled) submitHunterAction(true); });
+            startTimer(30, () => { if(!document.getElementById('hunter_shoot_btn').disabled) submitHunterAction(true); });
         }
 
         function submitHunterAction(isAuto = false) {
@@ -530,7 +530,7 @@
                 alivePlayers.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; select.appendChild(opt); });
                 const skipOpt = document.createElement('option'); skipOpt.value = "SKIP"; skipOpt.innerText = "🙅‍♂️ งดโหวต (Skip)"; select.appendChild(skipOpt);
                 
-                startTimer(45, () => {
+                startTimer(210, () => {
                     if(!document.getElementById('vote_btn').disabled) { document.getElementById('vote_select').value = "SKIP"; submitVote(true); }
                 });
             } else { document.getElementById('voting_section').style.display = 'none'; }
