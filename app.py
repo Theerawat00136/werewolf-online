@@ -32,6 +32,7 @@ app = create_app()
 night_actions = {}
 day_votes = {}
 room_extras = {} 
+active_sockets = {}  
 
 def generate_room_code(length=5):
     characters = string.ascii_uppercase + string.digits
@@ -60,6 +61,7 @@ def handle_create_room(data):
 
     join_room(room_code)
     join_room(f"private_{username}")
+    active_sockets[request.sid] = {'username': username, 'room_code': room_code}
     emit('room_created', {'room_code': room_code, 'message': f'สร้างห้อง {room_code} สำเร็จ!'})
     emit('player_joined', {'players': [username], 'host': username}, to=room_code)
 
@@ -89,6 +91,7 @@ def handle_join_room(data):
 
     join_room(room_code)
     join_room(f"private_{username}")
+    active_sockets[request.sid] = {'username': username, 'room_code': room_code}
     
     # 🟢 ลอจิกใหม่: เช็กว่าถ้าเกมกำลังเล่นอยู่ (ไม่ใช่หน้าจอรอก่อนเริ่ม)
     if getattr(room, 'status', None) in ['NIGHT', 'DAY']:
@@ -173,19 +176,23 @@ def check_game_over(room_code):
     # นับกำลังพลรวมทีมหมาป่า (รวมคนทรยศเข้าไปด้วย เพื่อเอาไว้ตัดสินชัยชนะ)
     wolf_team_total = sum(1 for r in alive_roles if r in ['Werewolf', 'Alpha Wolf', 'Traitor'])
 
+    # ดึงข้อมูลบทบาททุกคนเตรียมไว้เฉลย
+    all_players_for_reveal = PlayerStatus.query.filter_by(room_id=room.id).all()
+    roles_reveal = {User.query.get(p.user_id).username: p.role_name for p in all_players_for_reveal}
+
     # เงื่อนไขฆาตกรต่อเนื่องชนะ
     if sk_alive and total_alive <= 2:
-        emit('game_over', {'winner': 'Serial Killer'}, to=room_code)
+        emit('game_over', {'winner': 'Serial Killer', 'all_roles': roles_reveal}, to=room_code)
         return True
-    
+
     # เงื่อนไขชาวบ้านชนะ (หมาป่าแท้ตายหมด และฆาตกรตายแล้ว)
     elif actual_wolves == 0 and not sk_alive:
-        emit('game_over', {'winner': 'Villagers'}, to=room_code)
+        emit('game_over', {'winner': 'Villagers', 'all_roles': roles_reveal}, to=room_code)
         return True
-        
+
     # เงื่อนไขหมาป่าชนะ (ทีมหมาป่ารวมคนทรยศ >= ฝั่งตรงข้าม และฆาตกรตายแล้ว)
     elif wolf_team_total >= (total_alive - wolf_team_total) and not sk_alive:
-        emit('game_over', {'winner': 'Werewolves'}, to=room_code)
+        emit('game_over', {'winner': 'Werewolves', 'all_roles': roles_reveal}, to=room_code)
         return True
         
     return False
@@ -403,7 +410,9 @@ def handle_vote(data):
             if target_user:
                 target_player = PlayerStatus.query.filter_by(user_id=target_user.id, room_id=room.id).first()
                 if target_player.role_name == 'Fool':
-                    emit('game_over', {'winner': 'Fool', 'fool_name': executed_player}, to=room_code)
+                    all_players = PlayerStatus.query.filter_by(room_id=room.id).all()
+                    roles_reveal = {User.query.get(p.user_id).username: p.role_name for p in all_players}
+                    emit('game_over', {'winner': 'Fool', 'fool_name': executed_player, 'all_roles': roles_reveal}, to=room_code)
                     day_votes[room_code] = {}
                     return
                 
@@ -562,6 +571,30 @@ def handle_leave_room(data):
             if room_code in room_extras: del room_extras[room_code]
             if room_code in night_actions: del night_actions[room_code]
             if room_code in day_votes: del day_votes[room_code]
+        # ==========================================
+# 🌟 ระบบตรวจจับคนเน็ตหลุด / ปิดแท็บหนี (Anti-Hang & Realtime Leave)
+# ==========================================
+@socketio.on('disconnect')
+def handle_disconnect():
+    user_data = active_sockets.get(request.sid)
+    if user_data:
+        username = user_data['username']
+        room_code = user_data['room_code']
+        
+        room = GameRoom.query.filter_by(room_code=room_code).first()
+        if room:
+            if room.status == 'WAITING':
+                # 1. ถ้ายังอยู่ล็อบบี้แล้วปิดแท็บหนี ให้เตะออกจากห้องแบบ Realtime
+                handle_leave_room({'username': username, 'room_code': room_code})
+            else:
+                # 2. ถ้าเกมกำลังเล่นอยู่แล้วหลุด ให้ระบบ Auto-Skip (ข้ามตา) ทันที เกมจะได้ไม่ค้าง
+                if room.status == 'NIGHT':
+                    handle_night_action({'username': username, 'room_code': room_code, 'action_data': {'target': 'SKIP'}})
+                elif room.status == 'DAY':
+                    handle_vote({'username': username, 'room_code': room_code, 'target': 'SKIP'})
+        
+        # ลบความจำว่าคนนี้ออนไลน์อยู่ออก
+        del active_sockets[request.sid]
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)

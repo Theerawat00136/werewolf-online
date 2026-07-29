@@ -576,7 +576,7 @@
             }
         });
 
-        socket.on('game_over', function(data) {
+       socket.on('game_over', function(data) {
             stopTimer();
             playSfx('win');
             document.getElementById('action_section').style.display = 'none';
@@ -590,7 +590,28 @@
             else if (data.winner === 'Serial Killer') wText.innerHTML = "<span style='color:#000;'>ฆาตกรต่อเนื่องชนะ!</span> 🔪🩸";
             else wText.innerHTML = "<span style='color:#e74c3c;'>หมาป่าชนะ!</span> 🐺";
             
-            if (data.werewolves && data.werewolves.length > 0) {
+            // 🟢 ส่วนที่เพิ่มเข้ามาใหม่: กล่องเฉลยบทบาทผู้เล่นทุกคนแบบตาราง!
+            if (data.all_roles) {
+                let revealHtml = "<div style='margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.6); border-radius: 12px; font-size: 0.55em; text-align: left;'>";
+                revealHtml += "<h3 style='color: #ffd700; text-align: center; margin-top: 0; margin-bottom: 15px;'>🎭 เฉลยบทบาทผู้เล่น</h3><ul style='list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;'>";
+                
+                for (const [pName, pRole] of Object.entries(data.all_roles)) {
+                    let color = "#f8fafc"; // สีขาวสำหรับชาวบ้าน
+                    if (['Werewolf', 'Alpha Wolf'].includes(pRole)) color = "#ff4d4d"; // สีแดงหมาป่า
+                    else if (pRole === "Seer") color = "#3498db"; // สีฟ้าหยั่งรู้
+                    else if (pRole === "Serial Killer") color = "#a55eea"; // สีม่วงฆาตกร
+                    
+                    revealHtml += `<li><b style='color:${color};'>${pName}</b> : ${pRole}</li>`;
+                }
+                revealHtml += "</ul></div>";
+                wText.innerHTML += revealHtml;
+                
+                // สรุปในช่องแชทด้วย
+                let wolfNames = Object.keys(data.all_roles).filter(k => ['Werewolf', 'Alpha Wolf'].includes(data.all_roles[k]));
+                addSystemMessage(`--- 🏁 จบเกม! ---<br>🐺 หมาป่าคือ: ${wolfNames.join(', ')}`);
+                
+            } else if (data.werewolves && data.werewolves.length > 0) {
+                // (เผื่อกรณีระบบเก่า)
                 wText.innerHTML += `<br><span style='font-size: 0.6em; color: #ffcccc;'>(ผู้เล่นที่เป็นหมาป่า: ${data.werewolves.join(', ')})</span>`;
                 addSystemMessage(`--- 🏁 จบเกม! ---<br>🐺 หมาป่าคือ: ${data.werewolves.join(', ')}`);
             } else {
