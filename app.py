@@ -271,7 +271,7 @@ def resolve_night(room_code, players_in_room):
     extras = room_extras.get(room_code, {})
     
     werewolf_target, bodyguard_target, seer_target, seer_username = None, None, None, None
-    witch_heal, witch_poison = False, None
+    witch_heal, witch_poison = None, None
     sk_target = None
     harlots = []
 
@@ -294,11 +294,14 @@ def resolve_night(room_code, players_in_room):
                 if t1 and t2 and t1 != "SKIP" and t2 != "SKIP":
                     extras['lovers'] = [t1, t2]
             elif role == 'Witch':
-                if act.get('heal') and extras.get('witch_heal'):
-                    witch_heal = True
+                heal_target = act.get('heal')
+                if heal_target and heal_target != "SKIP" and extras.get('witch_heal'):
+                    witch_heal = heal_target  # เก็บชื่อคนที่แม่มดทายว่าจะโดนกัด
                     extras['witch_heal'] = False
-                if act.get('poison') and act.get('poison') != "SKIP" and extras.get('witch_poison'):
-                    witch_poison = act.get('poison')
+                
+                poison_target = act.get('poison')
+                if poison_target and poison_target != "SKIP" and extras.get('witch_poison'):
+                    witch_poison = poison_target
                     extras['witch_poison'] = False
 
     initial_dead = set()
@@ -312,7 +315,7 @@ def resolve_night(room_code, players_in_room):
         # ถ้าหนีไปบ้านหมาป่า หรือ ฆาตกรต่อเนื่อง
         if t_player and t_player.role_name in ['Werewolf', 'Alpha Wolf', 'Serial Killer']:
             initial_dead.add(h_user) 
-        elif h_target == werewolf_target and werewolf_target != bodyguard_target and not witch_heal:
+        elif h_target == werewolf_target and werewolf_target != bodyguard_target and werewolf_target != witch_heal: 
             initial_dead.add(h_user) # ไปบ้านคนที่กำลังจะโดนฆ่า เลยตายคู่
         elif h_target == sk_target and sk_target != bodyguard_target:
             initial_dead.add(h_user) # ไปบ้านคนที่โดนฆาตกรเชือด
@@ -320,9 +323,10 @@ def resolve_night(room_code, players_in_room):
         if werewolf_target == h_user: werewolf_target = None
         if sk_target == h_user: sk_target = None
 
-    # 2. เช็คหมาป่ากัด และคำสาป
+    # 2. เช็กหมาป่ากัด และคำสาป
     if werewolf_target and werewolf_target != "SKIP" and werewolf_target != bodyguard_target:
-        if not witch_heal:
+        # 🧪 เช็กว่าชื่อคนที่หมาป่ากัด ตรงกับชื่อที่แม่มดฮีลไหม
+        if werewolf_target != witch_heal:
             target_user = User.query.filter_by(username=werewolf_target).first()
             if target_user:
                 target_player = PlayerStatus.query.filter_by(user_id=target_user.id, room_id=room.id).first()
@@ -331,7 +335,7 @@ def resolve_night(room_code, players_in_room):
                     emit('update_role_ui', {'new_role': 'Werewolf'}, to=f"private_{target_user.username}")
                 else:
                     initial_dead.add(werewolf_target)
-                    
+
     # 3. เช็คฆาตกรต่อเนื่อง
     if sk_target and sk_target != "SKIP" and sk_target != bodyguard_target:
         initial_dead.add(sk_target)

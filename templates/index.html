@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Werewolf Ultimate - Definitive Edition</title>
@@ -381,15 +382,35 @@
                     populateSelect('target1', targets); populateSelect('target2', targets);
                 } 
                 else if (role === 'Witch') {
-                    document.getElementById('action_title').innerText = "🧙‍♀️ ปรุงยาแม่มด:";
-                    let html = "";
-                    if (extraData.witch_heal) html += `<label style="color:white; display:block; margin-bottom:10px;"><input type="checkbox" id="witch_heal_chk"> 🧪 ชุบชีวิตคนที่โดนกัดคืนนี้</label>`;
-                    else html += `<p style="color:#aaa;">❌ ยาชุบชีวิตหมดแล้ว</p>`;
-                    if (extraData.witch_poison) html += `<label style="color:white;">☠️ ใช้ยาพิษสาดใส่:</label> <select id="target1"><option value="SKIP">เก็บยาพิษไว้ก่อน</option></select>`;
-                    else html += `<p style="color:#aaa;">❌ ยาพิษหมดแล้ว</p>`;
-                    contentDiv.innerHTML = html;
-                    if (extraData.witch_poison) populateSelect('target1', targets);
-                }
+            document.getElementById('action_title').innerText = "🧙‍♀️ ปรุงยาแม่มด:";
+            let html = "";
+            
+            // 🧪 ส่วนยาชุบชีวิต (เปลี่ยนจาก Checkbox เป็น Dropdown)
+            if (extraData.witch_heal) {
+                html += `<label style="color:white; display:block; margin-bottom:5px;">🧪 ชุบชีวิต (คาดเดาว่าใครจะโดนกัด):</label> 
+                         <select id="witch_heal_target" style="margin-bottom:15px; width:100%; padding:5px; border-radius:4px;">
+                            <option value="SKIP">-- เก็บยาชุบชีวิตไว้ก่อน --</option>
+                         </select>`;
+            } else {
+                html += `<p style="color:#aaa; margin-bottom:15px;">❌ ยาชุบชีวิตหมดแล้ว</p>`;
+            }
+            
+            // ☠️ ส่วนยาพิษ
+            if (extraData.witch_poison) {
+                html += `<label style="color:white; display:block; margin-bottom:5px;">☠️ ใช้ยาพิษสาดใส่:</label> 
+                         <select id="target1" style="width:100%; padding:5px; border-radius:4px;">
+                            <option value="SKIP">-- เก็บยาพิษไว้ก่อน --</option>
+                         </select>`;
+            } else {
+                html += `<p style="color:#aaa;">❌ ยาพิษหมดแล้ว</p>`;
+            }
+            
+            document.getElementById('action_content').innerHTML = html;
+            
+            // ดึงรายชื่อผู้เล่นไปใส่ใน Dropdown ทั้ง 2 อัน
+            if (extraData.witch_heal) populateSelect('witch_heal_target', targets);
+            if (extraData.witch_poison) populateSelect('target1', targets);
+        }               
                 else {
                     if(['Werewolf', 'Alpha Wolf'].includes(role)) document.getElementById('action_title').innerText = "🐺 เลือกเหยื่อที่จะขย้ำ:";
                     if(role === 'Seer') document.getElementById('action_title').innerText = "👁️ เลือกส่องบทบาท:";
