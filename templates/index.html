@@ -266,15 +266,39 @@
 
         socket.on('player_joined', function(data) {
             const list = document.getElementById('player_list');
-            list.innerHTML = ""; totalPlayers = data.players.length;
+            list.innerHTML = ""; 
+            totalPlayers = data.players.length;
             document.getElementById('player_count').innerText = totalPlayers;
-            data.players.forEach(p => { const li = document.createElement('li'); li.innerText = p; list.appendChild(li); });
+            
+            const myUname = document.getElementById('username').value.trim();
+            
+            data.players.forEach(p => { 
+                const li = document.createElement('li'); 
+                // ถ้าชื่อตรงกับ Host ให้แสดงมงกุฎ
+                if (p === data.host) {
+                    li.innerHTML = `${p} 👑 <span style="color:red; font-size:0.8em;">(Host)</span>`;
+                } else {
+                    li.innerText = p; 
+                }
+                list.appendChild(li); 
+            });
+
+            // เช็กว่าเราคือ Host หรือไม่ เพื่อเปิด/ปิด ปุ่มจัดเด็ค
+            if (data.host === myUname) {
+                isHost = true;
+                document.getElementById('host_controls').style.display = 'block';
+                document.getElementById('player_waiting').style.display = 'none';
+            } else {
+                isHost = false;
+                document.getElementById('host_controls').style.display = 'none';
+                document.getElementById('player_waiting').style.display = 'block';
+            }
+
             if (isHost) {
                 let totalCards = Object.keys(selectedRoles).reduce((sum, key) => sum + selectedRoles[key], 0);
                 document.getElementById('start_btn').disabled = !(totalCards === totalPlayers && totalPlayers > 0);
             }
         });
-
         socket.on('error', function(data) { alert(data.message); });
 
         function updateRole(roleName, change) {

@@ -61,7 +61,7 @@ def handle_create_room(data):
     join_room(room_code)
     join_room(f"private_{username}")
     emit('room_created', {'room_code': room_code, 'message': f'สร้างห้อง {room_code} สำเร็จ!'})
-    emit('player_joined', {'players': [username]}, to=room_code)
+    emit('player_joined', {'players': [username], 'host': username}, to=room_code)
 
 @socketio.on('join_room')
 def handle_join_room(data):
@@ -110,7 +110,9 @@ def handle_join_room(data):
         players_in_room = PlayerStatus.query.filter_by(room_id=room.id).all()
         player_names = [User.query.get(p.user_id).username for p in players_in_room]
         emit('join_success', {'room_code': room_code})
-        emit('player_joined', {'players': player_names}, to=room_code)
+        host_user = User.query.get(room.host_id)
+        host_username = host_user.username if host_user else ""
+        emit('player_joined', {'players': player_names, 'host': host_username}, to=room_code)
 
 @socketio.on('start_game')
 def handle_start_game(data):
@@ -549,7 +551,9 @@ def handle_leave_room(data):
             
             # ประกาศรายชื่อคนในห้องที่อัปเดตใหม่ ให้ทุกคนที่เหลือเห็น
             player_names = [User.query.get(p.user_id).username for p in remaining_players]
-            emit('player_joined', {'players': player_names}, to=room_code)
+            host_user = User.query.get(room.host_id)
+            host_username = host_user.username if host_user else ""
+            emit('player_joined', {'players': player_names, 'host': host_username}, to=room_code)
         else:
             # 🔴 ถ้าห้องว่างเปล่า ไม่มีใครเหลือแล้ว ให้ลบห้องทิ้งไปเลย (ประหยัดพื้นที่ DB)
             db.session.delete(room)
