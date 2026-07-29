@@ -180,21 +180,33 @@ def check_game_over(room_code):
     all_players_for_reveal = PlayerStatus.query.filter_by(room_id=room.id).all()
     roles_reveal = {User.query.get(p.user_id).username: p.role_name for p in all_players_for_reveal}
 
-    # เงื่อนไขฆาตกรต่อเนื่องชนะ
+    winner = None
     if sk_alive and total_alive <= 2:
-        emit('game_over', {'winner': 'Serial Killer', 'all_roles': roles_reveal}, to=room_code)
-        return True
-
-    # เงื่อนไขชาวบ้านชนะ (หมาป่าแท้ตายหมด และฆาตกรตายแล้ว)
+        winner = 'Serial Killer'
     elif actual_wolves == 0 and not sk_alive:
-        emit('game_over', {'winner': 'Villagers', 'all_roles': roles_reveal}, to=room_code)
+        winner = 'Villagers'
+    elif wolf_team_total >= (total_alive - wolf_team_total) and not sk_alive:
+        winner = 'Werewolves'
+
+    # ถ้ามีผู้ชนะแล้ว ให้ส่งผลลัพธ์และล้างกระดาน
+    if winner:
+        emit('game_over', {'winner': winner, 'all_roles': roles_reveal}, to=room_code)
+        
+        # 🟢 รีเซ็ตห้องเพื่อเตรียมเล่นรอบใหม่
+        room.status = 'WAITING'
+        
+        # รีเซ็ตสถานะผู้เล่นทุกคนให้กลับมามีชีวิตและเคลียร์บทบาทเดิมทิ้ง
+        PlayerStatus.query.filter_by(room_id=room.id).update({'role_name': None, 'is_alive': True})
+        db.session.commit()
+        
+        # ล้างข้อมูลตัวแปรชั่วคราวของห้องนี้
+        if room_code in night_actions:
+            del night_actions[room_code]
+        if room_code in room_extras:
+            del room_extras[room_code]
+            
         return True
 
-    # เงื่อนไขหมาป่าชนะ (ทีมหมาป่ารวมคนทรยศ >= ฝั่งตรงข้าม และฆาตกรตายแล้ว)
-    elif wolf_team_total >= (total_alive - wolf_team_total) and not sk_alive:
-        emit('game_over', {'winner': 'Werewolves', 'all_roles': roles_reveal}, to=room_code)
-        return True
-        
     return False
 
 def process_deaths(room_code, initial_dead_names):
