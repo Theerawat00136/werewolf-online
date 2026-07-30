@@ -370,7 +370,7 @@
             contentDiv.innerHTML = "";
             document.getElementById('action_status').style.display = 'none';
 
-            if (['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Cupid', 'Harlot', 'Serial Killer'].includes(role)) {
+            if (['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Cupid', 'Harlot', 'Serial Killer', 'Aura Seer', 'Sorceress', 'Spellcaster'].includes(role)) {
                 if (role === 'Cupid' && extraData.night_count !== 1) { actionSection.style.display = 'none'; return; }
                 
                 actionSection.style.display = 'block';
@@ -413,14 +413,33 @@
         }               
                 else {
                     if(['Werewolf', 'Alpha Wolf'].includes(role)) document.getElementById('action_title').innerText = "🐺 เลือกเหยื่อที่จะขย้ำ:";
-                    if(role === 'Seer') document.getElementById('action_title').innerText = "👁️ เลือกส่องบทบาท:";
-                    if(role === 'Bodyguard') document.getElementById('action_title').innerText = "🛡️ เลือกคุ้มกัน (เลือกตัวเองได้):";
-                    if(role === 'Harlot') document.getElementById('action_title').innerText = "💃 เลือกบ้านที่จะไปหนีหมาป่าคืนนี้:";
-                    if(role === 'Serial Killer') document.getElementById('action_title').innerText = "🔪 เลือกเหยื่อที่คุณต้องการสังหาร:";
-                    
-                    contentDiv.innerHTML = `<select id="target1"><option value="SKIP">พักมือหนึ่งคืน (Skip)</option></select>`;
-                    populateSelect('target1', targets);
-                }
+            if(['Werewolf', 'Alpha Wolf'].includes(role)) document.getElementById('action_title').innerText = "🐺 เลือกเหยื่อที่จะขย้ำ:";
+            if(role === 'Seer') document.getElementById('action_title').innerText = "👁️ เลือกส่องบทบาท:";
+            if(role === 'Bodyguard') document.getElementById('action_title').innerText = "🛡️ เลือกคุ้มกัน (เลือกตัวเองได้):";
+            if(role === 'Harlot') document.getElementById('action_title').innerText = "💃 เลือกบ้านที่จะไปหนีหมาป่าคืนนี้:";
+            if(role === 'Serial Killer') document.getElementById('action_title').innerText = "🔪 เลือกเหยื่อที่คุณต้องการสังหาร:";
+            if(role === 'Aura Seer') document.getElementById('action_title').innerText = "✨ เลือกว่าใครมีออร่าพลังพิเศษ:";
+            if(role === 'Sorceress') document.getElementById('action_title').innerText = "🔮 เลือกส่องหาผู้หยั่งรู้ (Seer):";
+            if(role === 'Spellcaster') document.getElementById('action_title').innerText = "🪄 เลือกปิดปากผู้เล่น 1 คน:";
+
+            // 🐺 ระบบหมาป่าแค้นฝังหุ่น
+            if (['Werewolf', 'Alpha Wolf'].includes(role) && extraData.wolf_cub_revenge) {
+                document.getElementById('action_title').innerText = "🐺🔥 แค้นฝังหุ่น! เลือกเหยื่อ 2 คน:";
+                contentDiv.innerHTML = `<select id="target1" style="width:100%; padding:5px; margin-bottom:10px; border-radius:4px;">
+                                            <option value="SKIP">พักมือหนึ่งคืน (Skip)</option>
+                                        </select>
+                                        <select id="target2" style="width:100%; padding:5px; border-radius:4px;">
+                                            <option value="SKIP">พักมือหนึ่งคืน (Skip)</option>
+                                        </select>`;
+                populateSelect('target1', targets);
+                populateSelect('target2', targets);
+            } else {
+                contentDiv.innerHTML = `<select id="target1" style="width:100%; padding:5px; border-radius:4px;">
+                                            <option value="SKIP">พักมือหนึ่งคืน (Skip)</option>
+                                        </select>`;
+                populateSelect('target1', targets);
+            }
+        }
             } else {
                 actionSection.style.display = 'none';
             }
@@ -438,8 +457,12 @@
                 } else if (myRole === 'Witch') {
                     actionData = { heal: document.getElementById('witch_heal_chk') ? document.getElementById('witch_heal_chk').checked : false, poison: document.getElementById('target1') ? document.getElementById('target1').value : "SKIP" };
                 } else {
-                    actionData = { target: document.getElementById('target1') ? document.getElementById('target1').value : "SKIP" };
-                }
+            actionData = { target: document.getElementById('target1') ? document.getElementById('target1').value : "SKIP" };
+            // 🟢 ดึงข้อมูลคนที่ 2 กรณีแค้นฝังหุ่น
+            if (document.getElementById('target2')) {
+                actionData.target2 = document.getElementById('target2').value;
+            }
+        }
             }
             
             socket.emit('submit_night_action', { username: username, room_code: currentRoomCode, action_data: actionData });

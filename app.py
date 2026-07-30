@@ -77,6 +77,17 @@ def handle_join_room(data):
     if not room:
         return
 
+    # 🟢 เพิ่มบล็อกนี้เข้าไป เพื่อล้างกระดานอัตโนมัติถ้าเกมเพิ่งจบ
+    if room.status == 'END':
+        room.status = 'WAITING'
+        # ชุบชีวิตและลบอาชีพเก่าทิ้ง
+        PlayerStatus.query.filter_by(room_id=room.id).update({'role_name': None, 'is_alive': True})
+        db.session.commit()
+        # ล้างข้อมูลชั่วคราว
+        if room_code in night_actions:
+            night_actions[room_code] = {}
+        if room_code in room_extras:
+            room_extras[room_code] = {}
     user = User.query.filter_by(username=username).first()
     if not user:
         user = User(username=username)
@@ -237,6 +248,11 @@ def process_deaths(room_code, initial_dead_names):
                 if player.role_name == 'Hunter':
                     dead_is_hunter = True
                     hunter_name = d
+                    # 🐺 ฝังระเบิดเวลาลูกหมาป่า (Wolf Cub): ถ้าตาย คืนต่อไปหมาป่าได้กัด 2 คน
+                if player.role_name == 'Wolf Cub':
+                    if room_code not in room_extras:
+                        room_extras[room_code] = {}
+                    room_extras[room_code]['wolf_cub_revenge'] = True
     
     db.session.commit()
     return list(dead_set), dead_is_hunter, hunter_name
@@ -284,6 +300,9 @@ def resolve_night(room_code, players_in_room):
     
     werewolf_target, bodyguard_target, seer_target, seer_username = None, None, None, None
     witch_heal, witch_poison = None, None
+    aura_seer_target, aura_seer_username = None, None
+    sorceress_target, sorceress_username = None, None
+    spellcaster_target = None
     sk_target = None
     harlots = []
 
@@ -293,7 +312,9 @@ def resolve_night(room_code, players_in_room):
             act = actions[user.username]
             role = player.role_name
             
-            if role in ['Werewolf', 'Alpha Wolf']: werewolf_target = act.get('target')
+            if role in ['Werewolf', 'Alpha Wolf']: 
+                werewolf_target = act.get('target')
+                werewolf_target2 = act.get('target2')
             elif role == 'Serial Killer': sk_target = act.get('target')
             elif role == 'Bodyguard': bodyguard_target = act.get('target')
             elif role == 'Seer': 
@@ -315,6 +336,15 @@ def resolve_night(room_code, players_in_room):
                 if poison_target and poison_target != "SKIP" and extras.get('witch_poison'):
                     witch_poison = poison_target
                     extras['witch_poison'] = False
+
+        elif role == 'Aura Seer':
+            aura_seer_target = act.get('target')
+            aura_seer_username = user.username
+        elif role == 'Sorceress':
+            sorceress_target = act.get('target')
+            sorceress_username = user.username
+        elif role == 'Spellcaster' and act.get('target') != "SKIP":
+            spellcaster_target = act.get('target')
 
     initial_dead = set()
     room = GameRoom.query.filter_by(room_code=room_code).first()
@@ -347,6 +377,21 @@ def resolve_night(room_code, players_in_room):
                     emit('update_role_ui', {'new_role': 'Werewolf'}, to=f"private_{target_user.username}")
                 else:
                     initial_dead.add(werewolf_target)
+    # 🐺 รอยเขี้ยวที่สอง (กรณีลูกหมาป่าตายจากโหวต)
+    if locals().get('werewolf_target2') and werewolf_target2 != "SKIP" and werewolf_target2 != bodyguard_target:
+        if werewolf_target2 != witch_heal:
+            t2_user = User.query.filter_by(username=werewolf_target2).first()
+            if t2_user:
+                t2_player = PlayerStatus.query.filter_by(user_id=t2_user.id, room_id=room.id).first()
+                if t2_player.role_name == 'Cursed':
+                    t2_player.role_name = 'Werewolf'
+                    emit('update_role_ui', {'new_role': 'Werewolf'}, to=f"private_{t2_user.username}")
+                else:
+                    initial_dead.add(werewolf_target2)
+
+    # 🔄 ล้างสถานะความแค้นเพื่อไม่ให้หมาป่ากัด 2 คนทุกคืน!
+    if extras.get('wolf_cub_revenge'):
+        extras['wolf_cub_revenge'] = False
 
     # 3. เช็คฆาตกรต่อเนื่อง
     if sk_target and sk_target != "SKIP" and sk_target != bodyguard_target:
@@ -358,21 +403,42 @@ def resolve_night(room_code, players_in_room):
 
     final_dead_names, dead_is_hunter, hunter_name = process_deaths(room_code, list(initial_dead))
             
-# 5. ผู้หยั่งรู้ส่อง (ลอจิกหลอกตา)
+# 5. แก๊งสายส่อง (Seer, Aura Seer, Sorceress)
+    # 👁️ Seer (ผู้หยั่งรู้ธรรมดา)
     if seer_target and seer_target != "SKIP" and seer_username:
         target_user = User.query.filter_by(username=seer_target).first()
         if target_user:
             target_player = PlayerStatus.query.filter_by(user_id=target_user.id, room_id=room.id).first()
             seen_role = target_player.role_name
-            
-            # 🟢 ลอจิกใหม่: ถ้าเป็น Werewolf หรือ Lycan ให้เห็นเป็น 'Werewolf' นอกนั้นเห็นเป็น 'Villager' ทั้งหมด
-            if seen_role in ['Werewolf', 'Lycan']:
+            # ลวงจิกใหม่: Lycan/Wolf Cub เป็นหมาป่า นอกนั้นเป็นชาวบ้าน
+            if seen_role in ['Werewolf', 'Lycan', 'Alpha Wolf', 'Wolf Cub']:
                 seen_role = 'Werewolf'
             else:
-                seen_role = 'Villager' # ครอบคลุม Alpha Wolf, Bodyguard, Witch, Traitor ฯลฯ
-                
+                seen_role = 'Villager'
             emit('seer_result', {'target': seer_target, 'role': seen_role}, to=f"private_{seer_username}")
-            
+
+    # ✨ Aura Seer (ส่องหาออร่าพลังพิเศษ)
+    if aura_seer_target and aura_seer_target != "SKIP" and aura_seer_username:
+        target_user = User.query.filter_by(username=aura_seer_target).first()
+        if target_user:
+            target_player = PlayerStatus.query.filter_by(user_id=target_user.id, room_id=room.id).first()
+            # ถ้าไม่ใช่ Villager, Werewolf หรือ Wolf Cub = มีออร่าพลังพิเศษ!
+            has_aura = 'มีพลังพิเศษ (ชูนิ้วโป้ง 👍)' if target_player.role_name not in ['Villager', 'Werewolf', 'Wolf Cub'] else 'คนธรรมดา (คว่ำนิ้วโป้ง 👎)'
+            emit('seer_result', {'target': aura_seer_target, 'role': has_aura}, to=f"private_{aura_seer_username}")
+
+    # 🔮 Sorceress (แม่มดร้ายส่องหา Seer)
+    if sorceress_target and sorceress_target != "SKIP" and sorceress_username:
+        target_user = User.query.filter_by(username=sorceress_target).first()
+        if target_user:
+            target_player = PlayerStatus.query.filter_by(user_id=target_user.id, room_id=room.id).first()
+            # ชูนิ้วโป้งถ้าเป้าหมายคือแก๊ง Seer (Seer หรือ Aura Seer)
+            is_seer = 'คือผู้หยั่งรู้! (ชูนิ้วโป้ง 👍)' if target_player.role_name in ['Seer', 'Aura Seer'] else 'ไม่ใช่ผู้หยั่งรู้ (คว่ำนิ้วโป้ง 👎)'
+            emit('seer_result', {'target': sorceress_target, 'role': is_seer}, to=f"private_{sorceress_username}")
+
+    # 🪄 6. Spellcaster (จดจำคนที่โดนปิดปากไว้ใน extras)
+    if spellcaster_target:
+        extras['muted_player'] = spellcaster_target
+
     night_actions[room_code] = {} 
     if check_game_over(room_code): return
 
@@ -386,7 +452,8 @@ def resolve_night(room_code, players_in_room):
         'dead_player': dead_msg, 
         'alive_players': alive_players, 
         'dead_is_hunter': dead_is_hunter,
-        'hunter_name': hunter_name
+        'hunter_name': hunter_name,
+        'muted_player': extras.get('muted_player')
     }, to=room_code)
 
 @socketio.on('submit_vote')
@@ -430,7 +497,27 @@ def handle_vote(data):
                     roles_reveal = {User.query.get(p.user_id).username: p.role_name for p in all_players}
                     emit('game_over', {'winner': 'Fool', 'fool_name': executed_player, 'all_roles': roles_reveal}, to=room_code)
                     day_votes[room_code] = {}
-                    return
+                        # 🟢 รีเซ็ตห้องเตรียมเล่นรอบใหม่ (กรณี Fool ชนะ)
+                    room.status = 'WAITING'
+                    PlayerStatus.query.filter_by(room_id=room.id).update({'role_name': None, 'is_alive': True})
+                    db.session.commit()
+
+                    if room_code in night_actions:
+                        del night_actions[room_code]
+                    if room_code in room_extras:
+                        del room_extras[room_code]
+                        return
+                # 👑 สกิลเจ้าชาย (Prince) รอดตายจากการโหวตแขวนคอ 1 ครั้ง
+            elif target_player.role_name == 'Prince' and not room_extras.get(room_code, {}).get('prince_revealed'):
+                if room_code not in room_extras:
+                    room_extras[room_code] = {}
+                room_extras[room_code]['prince_revealed'] = True
+                
+                # ประกาศให้ทุกคนในห้องรู้ว่าประหารไม่สำเร็จ
+                emit('chat_message', {'sender': 'ระบบ', 'message': f'👑 โหวตประหารไม่สำเร็จ! [{executed_player}] คือเจ้าชาย!'}, to=room_code)
+                
+                # เปลี่ยนค่าคนตายเป็น None เพื่อให้เจ้าชายรอดชีวิต
+                executed_player = None
                 
         final_dead_names, dead_is_hunter, hunter_name = process_deaths(room_code, [executed_player] if executed_player else [])
                 
