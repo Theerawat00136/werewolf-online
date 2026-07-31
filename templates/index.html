@@ -24,9 +24,8 @@
         /* จัดระเบียบการ์ดอาชีพตอนสร้างห้อง */
         .role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 15px; }
         .role-selector { display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap; background: #f8fafc; padding: 8px 12px; border-radius: 10px; border: 1px solid #e2e8f0; font-weight: 500; min-height: 50px; box-sizing: border-box; }
-        .role-selector label, .role-selector span { font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
-        .role-selector button { width: 30px; height: 30px; padding: 0; margin: 0 2px; border-radius: 6px; display: inline-flex; justify-content: center; align-items: center; font-size: 1.2em; box-shadow: none; margin-top: 0; flex-shrink: 0; }
-        
+        .role-selector label, .role-selector span { flex: 1; min-width: 0; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; text-align: left; }        .role-selector button { width: 30px; height: 30px; padding: 0; margin: 0 2px; border-radius: 6px; display: inline-flex; justify-content: center; align-items: center; font-size: 1.2em; box-shadow: none; margin-top: 0; flex-shrink: 0; }
+        .role-selector button { flex-shrink: 0; width: 30px; height: 30px; padding: 0; margin: 0 2px; border-radius: 6px; display: inline-flex; justify-content: center; align-items: center; }
         /* 🌙 โหมดกลางคืนของส่วนการ์ดอาชีพ (Night Mode) */
         body.night-mode { background-color: #0f172a; color: #f8fafc; }
         body.night-mode .box { background: #1e293b; border-color: #334155; color: #f8fafc; }
