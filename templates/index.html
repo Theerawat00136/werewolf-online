@@ -456,7 +456,6 @@
         }
 
         function submitAction(isAuto = false) {
-            stopTimer();
             const username = document.getElementById('username').value.trim();
             const myRole = document.getElementById('my_role').innerText.replace(" (วิญญาณ 👻)", "");
             let actionData = { target: "SKIP" };
@@ -586,7 +585,6 @@
         }
 
         function submitVote(isAuto = false) {
-            stopTimer();
             const target = document.getElementById('vote_select').value;
             const username = document.getElementById('username').value.trim();
             socket.emit('submit_vote', { username: username, room_code: currentRoomCode, target: target });
@@ -757,6 +755,12 @@
         }
 
         function autoSubmitAction() {
+            // 🛡️ เช็คว่าถ้าปุ่มกดยืนยันถูกปิดไปแล้ว (คือเราโหวต/ใช้สกิลไปแล้ว) ไม่ต้องให้ระบบ Auto-Skip ซ้ำ
+            const actionBtn = document.getElementById('confirm_action_btn');
+            const voteBtn = document.getElementById('vote_btn');
+            
+            if ((actionBtn && actionBtn.disabled) || (voteBtn && voteBtn.disabled)) return;
+
             const roomCode = currentRoomCode;
             const username = document.getElementById('username').value;
             
