@@ -675,6 +675,37 @@ def handle_leave_room(data):
             if room_code in night_actions: del night_actions[room_code]
             if room_code in day_votes: del day_votes[room_code]
         # ==========================================
+# 🌟 ระบบบังคับตัดจบเมื่อหมดเวลา (Server-side Timeout Force-Skip)
+# ==========================================
+@socketio.on('force_timeout_skip')
+def handle_force_timeout(data):
+    room_code = data.get('room_code')
+    room = GameRoom.query.filter_by(room_code=room_code).first()
+    if not room:
+        return
+    
+    players_in_room = PlayerStatus.query.filter_by(room_id=room.id, is_alive=True).all()
+    
+    if room.status == 'NIGHT':
+        # บังคับยัดค่า SKIP ให้คนที่ยังไม่ส่งคำสั่งตอนกลางคืน
+        if room_code not in night_actions: night_actions[room_code] = {}
+        for p in players_in_room:
+            p_user = User.query.get(p.user_id)
+            if p_user and p_user.username not in night_actions[room_code]:
+                night_actions[room_code][p_user.username] = {'target': 'SKIP'}
+        resolve_night(room_code, players_in_room)
+        
+    elif room.status == 'DAY':
+        # บังคับยัดค่า SKIP ให้คนที่ยังไม่โหวตตอนกลางวัน
+        if room_code not in day_votes: day_votes[room_code] = {}
+        for p in players_in_room:
+            p_user = User.query.get(p.user_id)
+            if p_user and p_user.username not in day_votes[room_code]:
+                day_votes[room_code][p_user.username] = 'SKIP'
+        # จำลองการประมวลผลโหวตทันที
+        handle_vote({'username': p_user.username, 'room_code': room_code, 'target': 'SKIP'})
+
+# ==========================================
 # 🌟 ระบบตรวจจับคนเน็ตหลุด / ปิดแท็บหนี (Anti-Hang & Realtime Leave)
 # ==========================================
 @socketio.on('disconnect')
@@ -698,6 +729,5 @@ def handle_disconnect():
         
         # ลบความจำว่าคนนี้ออนไลน์อยู่ออก
         del active_sockets[request.sid]
-
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)

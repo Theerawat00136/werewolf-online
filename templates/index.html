@@ -743,14 +743,15 @@
                 let s = timeLeft % 60;
                 document.getElementById('time_left').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
                 
-                if (timeLeft <= 0) {
-                    clearInterval(countdownInterval);
-                    if (customCallback) {
-                        customCallback();
-                    } else if (typeof autoSubmitAction === 'function') {
-                        autoSubmitAction(); 
-                    }
+            if (timeLeft <= 0) {
+                clearInterval(countdownInterval);
+                socket.emit('force_timeout_skip', { room_code: currentRoomCode });
+                if (customCallback) {
+                    customCallback();
+                } else if (typeof autoSubmitAction === 'function') {
+                    autoSubmitAction();
                 }
+        }
             }, 1000);
         }
 
