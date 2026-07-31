@@ -283,7 +283,7 @@ def handle_night_action(data):
     night_count = room_extras.get(room_code, {}).get('night_count', 1)
     
     # อาชีพทั้งหมดที่ต้องกดคำสั่งตอนกลางคืน
-    active_roles = ['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Harlot', 'Serial Killer']
+    active_roles = ['Werewolf', 'Alpha Wolf', 'Seer', 'Bodyguard', 'Witch', 'Harlot', 'Serial Killer', 'Aura Seer', 'Sorceress', 'Spellcaster']
     if night_count == 1:
         active_roles.append('Cupid')
 
