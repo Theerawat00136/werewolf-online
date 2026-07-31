@@ -71,7 +71,7 @@
     <div id="manual_modal" class="modal">
         <div class="modal-content fade-in">
             <span class="close-btn" onclick="document.getElementById('manual_modal').style.display='none'">&times;</span>
-            <h2 style="margin-top: 0;">📖 คู่มือบทบาททั้ง 15 ตัว</h2>
+            <h2 style="margin-top: 0;">📖 คู่มือบทบาททั้ง 20 ตัว</h2>
             <div style="max-height: 60vh; overflow-y: auto; padding-right: 10px;">
                 <div class="role-desc"><h4>🧑‍🌾 ชาวบ้าน (Villager)</h4><p style="margin:0; font-size:0.9em;">ไม่มีพลังพิเศษตอนกลางคืน ต้องใช้การพูดคุยจับโกหกและโหวตแขวนคอหมาป่าในตอนเช้า</p></div>
                 <div class="role-desc"><h4 style="color:#c0392b;">🐺 หมาป่า (Werewolf)</h4><p style="margin:0; font-size:0.9em;">ตื่นตอนกลางคืนเพื่อเลือกฆ่าคน 1 คน สามารถคุยแชทลับกับเพื่อนหมาป่าได้</p></div>
@@ -88,6 +88,11 @@
                 <div class="role-desc"><h4 style="color:#7f8c8d;">🦹‍♂️ คนทรยศ (Traitor)</h4><p style="margin:0; font-size:0.9em;">เนียนเป็นชาวบ้าน แต่จะชนะพร้อมกับหมาป่า (ต้องพยายามปั่นให้หมาป่าชนะ โดยที่หมาป่าก็ไม่รู้ว่าคนนี้เป็นพวก)</p></div>
                 <div class="role-desc"><h4 style="color:#000;">🔪 ฆาตกรต่อเนื่อง (Serial Killer)</h4><p style="margin:0; font-size:0.9em;">มือที่สาม ตื่นทุกคืนเพื่อฆ่าคน 1 คน จะชนะก็ต่อเมื่อเหลือรอดเป็นคนสุดท้ายหรือสองคนสุดท้ายของหมู่บ้าน</p></div>
                 <div class="role-desc"><h4 style="color:#d35400;">🤡 คนบ้า (Fool)</h4><p style="margin:0; font-size:0.9em;">เป้าหมายเดียวคือต้องปั่นป่วนให้ตัวเอง "ถูกโหวตแขวนคอ" ตอนกลางวันให้ได้ หากทำสำเร็จจะชนะเกมทันที</p></div>
+                <div class="role-desc"><h4 style="color:#c0392b;">🐺💥 ลูกหมาป่า (Wolf Cub)</h4><p style="margin:0; font-size:0.9em;">ฝั่งหมาป่า หากเขาถูกฆ่าตาย คืนถัดไปหมาป่าจะโกรธแค้นและสามารถกัดชาวบ้านได้ถึง 2 คน!</p></div>
+                <div class="role-desc"><h4 style="color:#f1c40f;">✨ ผู้หยั่งรู้ออร่า (Aura Seer)</h4><p style="margin:0; font-size:0.9em;">ตื่นกลางคืนเพื่อส่องผู้เล่น 1 คน จะไม่รู้บทบาทแน่ชัด แต่จะรู้ว่าเป้าหมาย "มีพลังพิเศษ" หรือเป็นแค่คนธรรมดา</p></div>
+                <div class="role-desc"><h4 style="color:#9b59b6;">🔮 แม่มดร้าย (Sorceress)</h4><p style="margin:0; font-size:0.9em;">อยู่ฝั่งหมาป่า (แต่หมาป่าไม่รู้ตัว) ตื่นกลางคืนเพื่อส่องหาว่าใครคือ "ผู้หยั่งรู้" (Seer / Aura Seer)</p></div>
+                <div class="role-desc"><h4 style="color:#2980b9;">🪄 ผู้ร่ายเวท (Spellcaster)</h4><p style="margin:0; font-size:0.9em;">ตื่นกลางคืนเพื่อสั่งปิดปากผู้เล่น 1 คน ในเช้าวันรุ่งขึ้น คนๆ นั้นจะไม่สามารถพิมพ์แชทพูดคุยได้</p></div>
+                <div class="role-desc"><h4 style="color:#e67e22;">👑 เจ้าชาย (Prince)</h4><p style="margin:0; font-size:0.9em;">ฝั่งชาวบ้าน มีบัตรทรู หากถูกโหวตแขวนคอตอนกลางวัน เขาจะโชว์ตัวตนและรอดตายจากการแขวนคอได้ 1 ครั้ง</p></div>
             </div>
         </div>
     </div>
@@ -128,6 +133,11 @@
                         <div class="role-selector"><label style="color:#7f8c8d;">🦹‍♂️ คนทรยศ: <span id="count_Traitor">0</span></label><div><button onclick="updateRole('Traitor', 1)">+</button><button onclick="updateRole('Traitor', -1)">-</button></div></div>
                         <div class="role-selector"><label style="color:#000; font-weight:bold;">🔪 ฆาตกร: <span id="count_Serial_Killer">0</span></label><div><button onclick="updateRole('Serial Killer', 1)">+</button><button onclick="updateRole('Serial Killer', -1)">-</button></div></div>
                         <div class="role-selector"><label style="color:#d35400;">🤡 คนบ้า: <span id="count_Fool">0</span></label><div><button onclick="updateRole('Fool', 1)">+</button><button onclick="updateRole('Fool', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#c0392b;">🐺💥 ลูกหมาป่า: <span id="count_Wolf_Cub">0</span></label><div><button onclick="updateRole('Wolf Cub', 1)">+</button><button onclick="updateRole('Wolf Cub', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#f1c40f;">✨ หยั่งรู้ออร่า: <span id="count_Aura_Seer">0</span></label><div><button onclick="updateRole('Aura Seer', 1)">+</button><button onclick="updateRole('Aura Seer', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#9b59b6;">🔮 แม่มดร้าย: <span id="count_Sorceress">0</span></label><div><button onclick="updateRole('Sorceress', 1)">+</button><button onclick="updateRole('Sorceress', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#2980b9;">🪄 ผู้ร่ายเวท: <span id="count_Spellcaster">0</span></label><div><button onclick="updateRole('Spellcaster', 1)">+</button><button onclick="updateRole('Spellcaster', -1)">-</button></div></div>
+                        <div class="role-selector"><label style="color:#e67e22;">👑 เจ้าชาย: <span id="count_Prince">0</span></label><div><button onclick="updateRole('Prince', 1)">+</button><button onclick="updateRole('Prince', -1)">-</button></div></div>
                         <div class="role-selector"><label>🧑‍🌾 ชาวบ้าน: <span id="count_Villager">0</span></label><div><button onclick="updateRole('Villager', 1)">+</button><button onclick="updateRole('Villager', -1)">-</button></div></div>
                     </div>
                     <button onclick="startGame()" style="background-color: #dc3545; padding: 12px; font-size: 1.1em;" id="start_btn" disabled>เริ่มเกม</button>
@@ -199,7 +209,7 @@
     <script>
         const socket = io();
         let isHost = false;
-        let selectedRoles = { 'Werewolf':0, 'Alpha Wolf':0, 'Seer':0, 'Bodyguard':0, 'Hunter':0, 'Witch':0, 'Cupid':0, 'Harlot':0, 'Mayor':0, 'Cursed':0, 'Lycan':0, 'Traitor':0, 'Serial Killer':0, 'Villager':0, 'Fool':0 };
+        let selectedRoles = { 'Werewolf':0, 'Alpha Wolf':0, 'Wolf Cub':0, 'Seer':0, 'Aura Seer':0, 'Sorceress':0, 'Bodyguard':0, 'Hunter':0, 'Witch':0, 'Spellcaster':0, 'Cupid':0, 'Harlot':0, 'Prince':0, 'Mayor':0, 'Cursed':0, 'Lycan':0, 'Traitor':0, 'Serial Killer':0, 'Fool':0, 'Villager':0 };
         let currentRoomCode = '';
         let totalPlayers = 0;
         let isPlayerDead = false;
