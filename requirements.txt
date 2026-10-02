@@ -6,3 +6,4 @@ gunicorn
 uvicorn
 gevent
 gevent-websocket
+packaging
