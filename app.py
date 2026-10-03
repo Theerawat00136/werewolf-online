@@ -12,7 +12,7 @@ def create_app():
     app.config['SECRET_KEY'] = 'werewolf_super_secret_key'
     
     # 🟢 ลอจิกดึงลิงก์ฐานข้อมูลจากเซิร์ฟเวอร์ ถ้าหาไม่เจอจะกลับไปใช้ของเครื่องเราแทน
-    db_url = os.environ.get('DATABASE_URL', 'postgresql://postgres:pass1234@localhost:5432/werewolf_db')
+    db_url = os.environ.get('DATABASE_URL', 'postgresql://postgres:admin123@localhost:5432/werewolf_db')
     
     # 🟢 เซิร์ฟเวอร์ Render มักจะให้ลิงก์ที่ขึ้นต้นด้วย postgres:// ซึ่งต้องแก้เป็น postgresql:// 
     if db_url.startswith("postgres://"):
