@@ -7,3 +7,5 @@ uvicorn
 gevent
 gevent-websocket
 packaging
+psycopg2-binary
+psycopg-binary
